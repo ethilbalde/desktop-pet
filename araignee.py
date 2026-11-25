@@ -5615,7 +5615,7 @@ class Life:
         return 'Triste' if self.joy > 0.25 else 'Deprime'
 
 
-VERSION = '1.1.2'
+VERSION = '1.1.3'
 GITHUB_REPO = 'ethilbalde/desktop-pet'
 
 
