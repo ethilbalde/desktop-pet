@@ -2,7 +2,7 @@
 
 > **Tu t'ennuies au bureau ?** Voici un petit animal pour te faire passer le temps.
 
-### [⬇️ Télécharger AraigneeBureau.exe](https://github.com/ethilbalde/desktop-pet/releases/latest/download/AraigneeBureau.exe)
+### [⬇️ Télécharger DesktopPet.exe](https://github.com/ethilbalde/desktop-pet/releases/latest/download/DesktopPet.exe)
 
 *Windows 10/11 · un seul fichier · rien à installer, aucune dépendance · toujours la dernière version.*
 
@@ -50,7 +50,7 @@ Chacun a plusieurs pelages, des grimaces (yeux qui louchent, cœurs dans les yeu
 
 ## Installation (30 secondes, dont 25 à hésiter)
 
-1. Clique sur [**Télécharger AraigneeBureau.exe**](https://github.com/ethilbalde/desktop-pet/releases/latest/download/AraigneeBureau.exe) (ou va dans l'onglet **Releases**).
+1. Clique sur [**Télécharger DesktopPet.exe**](https://github.com/ethilbalde/desktop-pet/releases/latest/download/DesktopPet.exe) (ou va dans l'onglet **Releases**).
 2. Double-clique dessus. C'est tout : **rien à installer, aucun Python, aucune dépendance**. Tout est dans le fichier.
    - Windows peut afficher « Windows a protégé votre ordinateur » : clique sur **Informations complémentaires**, puis **Exécuter quand même**. L'exe n'est pas signé, l'animal non plus.
 3. Choisis ton animal et son pelage dans le menu de lancement. Un œuf apparaît.
@@ -58,7 +58,7 @@ Chacun a plusieurs pelages, des grimaces (yeux qui louchent, cœurs dans les yeu
 
 **Mettre à jour :** *Réglages* > *Mise à jour*. Il télécharge la dernière version depuis GitHub et redémarre, **sans oublier ton animal** (âge, nom, caractère, tout est gardé).
 
-**Désinstaller (si tu en as le cœur) :** quitte le programme, supprime `AraigneeBureau.exe`, puis le dossier `%APPDATA%\AraigneeBureau` où vivent ses souvenirs. Il ne laisse rien d'autre sur ton PC, pas même une petite crotte.
+**Désinstaller (si tu en as le cœur) :** quitte le programme, supprime `DesktopPet.exe`, puis le dossier `%APPDATA%\AraigneeBureau` où vivent ses souvenirs. Il ne laisse rien d'autre sur ton PC, pas même une petite crotte.
 
 ## Mode d'emploi
 
@@ -88,4 +88,4 @@ pip install pyinstaller pillow
 construire_exe.bat
 ```
 
-Le fichier sort dans `dist\AraigneeBureau.exe`. Aucun animal n'a été maltraité pendant la compilation.
+Le fichier sort dans `dist\DesktopPet.exe`. Aucun animal n'a été maltraité pendant la compilation.
