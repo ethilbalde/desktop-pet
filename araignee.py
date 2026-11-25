@@ -4123,6 +4123,8 @@ POSES = {
 POSES['rim_hide'] = dict(sx=2, sy=-27, hx=-2, hy=-14, hdx=3, hdy=-14, ta=1.75, curl=0.0, amp=0.1, bl=0.9, bt=1.0, arc=0.0,
                           gait=0.0, feet=((4, -34.5), (7, -34.5), (-4, -1), (-7, -1)))
 POSES['rim_peek'] = dict(POSES['rim_hide'], hdy=-46)
+POSES['beg'] = dict(sx=4, sy=-32, hx=-9, hy=-12, hdx=7, hdy=-49, ta=3.0, curl=0.3, amp=0.1, bl=0.95, bt=1.0, arc=0.0,
+                    gait=0.0, feet=((13, -22), (16, -24), (0, 0), (4, 0)))
 
 
 def _dp(base, **kw):
@@ -4194,6 +4196,8 @@ def _belly(st, kick=0.0):
                       (hx + 4 - 4 * k, hy + 16 + 2 * k), (hx - 3 + 4 * k, hy + 18 - 3 * k)))
 
 
+FERRET_POSES['beg'] = dict(FERRET_POSES['beg'], sx=3, sy=-35, hx=-6, hy=-7, hdx=7, hdy=-47, ta=2.7,   # furet dresse : le corps a la verticale
+                           feet=((9, -25), (11, -27), (0, 0), (5, 0)))
 FERRET_POSES['war'] = dict(sx=14, sy=-11, hx=-14, hy=-10, hdx=25, hdy=-10, ta=-2.3, curl=0.15, amp=0.2, bl=1.0, bt=0.62, arc=6.0,
                            gait=0.0, feet=((12, 0), (9, 0), (-15, 0), (-17, 0)))
 
@@ -4231,6 +4235,7 @@ class Cat:
         self.squash = 0.0
         self.spin = 0.0
         self.paw = 0.0
+        self.paw_to = None        # cible de la patte avant (x, y locaux) pour le coup de patte
         self.paw_ph = 0.0
         self.yawn = 0.0
         self.puff = 0.0
@@ -4338,6 +4343,20 @@ class Cat:
                  ta=-3.0, curl=-0.05, amp=0.22, bl=1.0 + 0.22 * e, bt=0.93, arc=6.0 * (1 - e), gait=0.0)
         G['feet'] = [self._kf(self.FRONT_KF, phi), self._kf(self.FRONT_KF, phi + 0.05),
                      self._kf(self.HIND_KF, phi), self._kf(self.HIND_KF, phi + 0.05)]
+        if self.ferret:
+            # galop du furet : le corps s'etire tres long en vol, puis se replie en arche (dos rond) quand les pattes se rassemblent
+            sx0 = G['sx']
+            G['sx'] = sx0 * 1.45 + 6 * e
+            G['hx'] = G['hx'] * 1.45 - 6 * e
+            G['hdx'] = G['hdx'] + (G['sx'] - sx0) + 2
+            G['sy'] *= 0.62
+            G['hy'] *= 0.62
+            G['hdy'] *= 0.62
+            G['bl'] = 1.0 + 0.3 * e
+            G['bt'] = 0.58
+            G['arc'] = 7.0 * (1 - e)
+            G['ta'] = 2.95
+            G['feet'] = [(fx * (1.45 + 0.35 * e), fy * 0.7) for fx, fy in G['feet']]
         return G
 
     def set_pose(self, name, rate=9.0):
@@ -4539,7 +4558,10 @@ class Cat:
             out.append([fx + (gx - fx) * gw, fy + (gy - fy) * gw])
         if self.paw > 0.01:                                  # patte avant levée vers le visage (toilette, coup de patte)
             hx, hy = P['hdx'], P['hdy']
-            tx, ty = hx + 6 + 2 * math.sin(self.paw_ph), hy + 10 + 2 * math.cos(self.paw_ph * 1.3)
+            if self.paw_to is not None:
+                tx, ty = self.paw_to
+            else:
+                tx, ty = hx + 6 + 2 * math.sin(self.paw_ph), hy + 10 + 2 * math.cos(self.paw_ph * 1.3)
             out[0][0] += (tx - out[0][0]) * self.paw
             out[0][1] += (ty - out[0][1]) * self.paw
         if self.knead_w > 0.01:                              # pétrissage : les pattes avant poussent à tour de rôle
@@ -4684,13 +4706,17 @@ class Cat:
                                 line += [px_, py_]
                         if len(line) >= 4:
                             c.create_line(*line, fill=dark, width=max(2, int(1.9 * u)), capstyle=tk.ROUND, smooth=True)
-            elif co['pat'] == 'calico':
-                c.create_polygon(self.ell3((mx - 4, my - bt * 0.55, 0), ((7.5, 0, 0), (0, 4.0, 0), (0, 0, rz * 0.7)), 16), fill=co['p1'], outline='')
-                c.create_polygon(self.ell3((mx + 7, my - bt * 0.45, 0), ((5.5, 0, 0), (0, 3.4, 0), (0, 0, rz * 0.7)), 16), fill=co['p2'], outline='')
+            elif co['pat'] == 'calico':                          # (taches posees le long du dos, elles suivent le corps)
+                c.create_polygon(self.ell3((mx - 4 * ca_ - nx_ * bt * 0.55, my - 4 * sa_ - ny_ * bt * 0.55, 0),
+                                           ((7.5 * ca_, 7.5 * sa_, 0), (4.0 * nx_, 4.0 * ny_, 0), (0, 0, rz * 0.7)), 16), fill=co['p1'], outline='')
+                c.create_polygon(self.ell3((mx + 7 * ca_ - nx_ * bt * 0.45, my + 7 * sa_ - ny_ * bt * 0.45, 0),
+                                           ((5.5 * ca_, 5.5 * sa_, 0), (3.4 * nx_, 3.4 * ny_, 0), (0, 0, rz * 0.7)), 16), fill=co['p2'], outline='')
             elif co['pat'] == 'tux' and s_y > -0.35:
                 c.create_polygon(self.ell3((P['sx'] + 1, P['sy'] + 6, 1.5), ((6.2, 0, 0), (0, 8.8, 0), (0, 0, 5.0)), 18), fill='#ffffff', outline='')
             elif co['pat'] == 'saddle':                          # selle sombre sur le dos (beagle, husky)
-                c.create_polygon(self.ell3((mx - 1, my - bt * 0.52, 0), ((ln * 0.74, 0, 0), (0, bt * 0.45, 0), (0, 0, rz * 0.98)), 26), fill=dark, outline='')
+                c.create_polygon(self.ell3((mx - ca_ - nx_ * bt * 0.52, my - sa_ - ny_ * bt * 0.52, 0),
+                                           ((ca_ * ln * 0.74, sa_ * ln * 0.74, 0), (nx_ * bt * 0.45, ny_ * bt * 0.45, 0), (0, 0, rz * 0.98)), 26),
+                                 fill=dark, outline='')
             elif co['pat'] == 'spots':                           # taches de dalmatien
                 sgn = 1 if self.V((0, 0, 1))[2] >= 0 else -1
                 for tt, vv, rr in ((-0.62, -0.35, 2.1), (-0.2, 0.05, 2.7), (0.28, -0.42, 2.0), (0.6, 0.02, 2.3), (-0.75, 0.3, 1.8),
@@ -4698,7 +4724,9 @@ class Cat:
                     c.create_polygon(self.ell3((mx + ca_ * ln * tt + nx_ * bt * vv, my + sa_ * ln * tt + ny_ * bt * vv, sgn * rz * 0.8),
                                                ((rr, 0, 0), (0, rr, 0), (0, 0, rr * 0.5)), 10), fill=dark, outline='')
             elif co['pat'] == 'stripe':                          # raie dorsale sombre (chevre caramel / grise)
-                c.create_polygon(self.ell3((mx - 1, my - bt * 0.76, 0), ((ln * 0.86, 0, 0), (0, bt * 0.20, 0), (0, 0, rz * 0.72)), 24), fill=dark, outline='')
+                c.create_polygon(self.ell3((mx - ca_ - nx_ * bt * 0.76, my - sa_ - ny_ * bt * 0.76, 0),
+                                           ((ca_ * ln * 0.86, sa_ * ln * 0.86, 0), (nx_ * bt * 0.20, ny_ * bt * 0.20, 0), (0, 0, rz * 0.72)), 24),
+                                 fill=dark, outline='')
             elif co['pat'] == 'patch':                           # grandes taches (chevre pie)
                 sgn = 1 if self.V((0, 0, 1))[2] >= 0 else -1
                 for tt, vv, rr in ((-0.5, -0.25, 5.2), (0.32, -0.1, 4.4), (0.74, 0.4, 3.0)):
@@ -5943,6 +5971,8 @@ class CatPet:
             ct.eyes = 'open'
         if name not in ('groom', 'bat'):
             ct.paw = 0.0
+        if name != 'swat':
+            ct.paw_to = None
         ct.yawn = 0.0
         ct.wag = 0.0
         ct.puff = 0.0
@@ -5979,6 +6009,7 @@ class CatPet:
     def go_idle(self, secs, pose=None):
         self.then = None
         self.cat.paw = 0.0
+        self.cat.paw_to = None
         self.idle_view = random.choices(['side', 'front', '3q', 'back'], [0.38, 0.32, 0.2, 0.1])[0]
         self.set_state('idle')
         self.idle_for = secs
@@ -6599,24 +6630,87 @@ class CatPet:
                 self.go_idle(random.uniform(1.0, 2.5), 'sit')
 
     def st_swat(self, dt):
-        """Debout, la patte qui fouette l'air pour attraper le pointeur."""
+        """Coup de patte sur le pointeur : il suit le curseur, se place a bonne distance,
+        se dresse sur ses pattes arriere si le pointeur est haut, s'aplatit s'il est au ras du sol,
+        et sa patte avant va toucher le pointeur."""
         ct, u = self.cat, self.u
         t = self.state_t
-        self.vx = 0.0
-        ct.set_pose('stand', 10)
-        ct.dir = 1 if self.cur[0] >= ct.x else -1
-        ct.paw = max(0.0, math.sin(t * 9))
+        cx, cy = self.cur
+        ry = (ct.y - cy) / u                                      # hauteur du pointeur au-dessus du sol (unites)
+        # posture selon la hauteur du pointeur (avec un peu d'hysteresis)
+        pose = getattr(self, 'swat_pose', 'stand')
+        if ry > (24 if pose == 'beg' else 29):                    # pointeur un peu haut : il se dresse sur 2 pattes
+            pose = 'beg'
+        elif ry < (16 if pose == 'crouch' else 11):
+            pose = 'crouch'
+        else:
+            pose = 'stand'
+        self.swat_pose = pose
+        ct.set_pose(pose, 9)
+        Pp = ct.poses[pose]
+        # il se tourne vers le pointeur (pas de demi-tour nerveux quand il est juste au-dessus)
+        if abs(cx - ct.x) > 12 * u:
+            ct.dir = 1 if cx >= ct.x else -1
+        # point d'epaule et allonge de la patte
+        shx, shy = Pp['sx'], Pp['sy']
+        reach = {'beg': 27.0, 'crouch': 24.0}.get(pose, 22.0)
+        ty = clamp(-ry, shy - reach, 0.0)
+        hx_ = math.sqrt(max(0.0, reach * reach - (ty - shy) ** 2)) * 0.85
+        off = shx + max(6.0, hx_)
+        if pose == 'beg' or abs(ty - Pp['hdy']) < 14:            # pointeur a hauteur de tete : on le garde devant le museau
+            off = max(off, Pp['hdx'] + (13 if pose == 'beg' else 9))
+        want_x = cx - ct.dir * off * u                            # ou se placer pour que la patte arrive au pointeur
+        p = self.cur_plat()
+        if p is not None:
+            want_x = clamp(want_x, p['x0'] + 10 * u, p['x1'] - 10 * u)
+        d = want_x - ct.x
+        k_ = u / 1.75
+        self.vx = clamp(d * 7, -330 * k_, 330 * k_) if abs(d) > 3 * u else 0.0
+        if abs(self.vx) > 40 * k_ and pose != 'beg':
+            ct.set_pose('crouch' if pose == 'crouch' else 'stand', 9)
+        # la patte : petits coups secs vers le pointeur
+        c = math.cos(ct.yaw)
+        strike = max(0.0, math.sin(t * 8.5)) ** 0.6
+        if abs(c) > 0.35:
+            lx = (cx - ct.x) / (u * c)                           # cible en coordonnees locales
+            ly = clamp((cy - ct.y) / u, shy - reach - 4, 2.0)
+            dx_, dy_ = lx - shx, ly - shy
+            dd = math.hypot(dx_, dy_)
+            if dd > reach + 4:                                   # trop loin : la patte se tend au maximum
+                lx, ly = shx + dx_ / dd * (reach + 4), shy + dy_ / dd * (reach + 4)
+            rx, ry_ = shx + 6, shy - (8 if pose != 'crouch' else 3)   # patte armee, repliee contre le poitrail
+            ct.paw_to = (rx + (lx - rx) * strike, ry_ + (ly - ry_) * strike)
+            ct.paw = 1.0
+        else:
+            ct.paw_to = None
+            ct.paw = strike
         ct.wag = 0.6
         ct.eyes = 'open'
-        if int(t * 1.5) != int((t - dt) * 1.5):
-            self.sound('tap')
+        # touche !
+        if strike > 0.97 and not getattr(self, 'swat_hit', False):
+            self.swat_hit = True
+            fx, fy = ct.T(*ct.paw_to) if ct.paw_to is not None else (ct.x, ct.y)
+            if math.hypot(fx - cx, fy - cy) < 9 * u:
+                self.sound('tap')
+                self.sparks.append([cx, cy, random.uniform(-30, 30), -random.uniform(10, 40), 0.0, 'star'])
+        elif strike < 0.3:
+            self.swat_hit = False
         hx, hy = ct.x, ct.y - 30 * u
-        gone = abs(self.cur[0] - hx) > 140 * u or (hy - self.cur[1]) > 170 * u or self.cur[1] > ct.y
-        if t > 2.4 or gone or self.cspeed > 600:
-            if self.cspeed > 600 and not gone:
+        top = -ct.poses['beg']['sy'] + 27 + 14                    # au-dela, meme dresse il n'y arrive pas
+        gone = abs(cx - ct.x) > 260 * u or ry > top or cy > ct.y + 10 * u
+        if t > 6.0 or gone or self.cspeed > 900:
+            if self.cspeed > 900 and not gone:
                 self.say('Rate !')
-            ct.paw = 0.0
-            self.go_idle(random.uniform(1.0, 2.5), 'sit')
+            elif ry > top:
+                self.say('Trop haut !')
+            self.end_swat()
+
+    def end_swat(self):
+        ct = self.cat
+        ct.paw, ct.paw_to = 0.0, None
+        self.swat_pose = 'stand'
+        self.vx = 0.0
+        self.go_idle(random.uniform(1.0, 2.5), 'sit')
 
     def check_defend(self):
         ct, u = self.cat, self.u
