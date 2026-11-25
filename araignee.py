@@ -1248,7 +1248,7 @@ class Fly:
         self.fall_t = 0.0
         self.kind = kind
         P = {'fly': (1.0, 170, 3.6, 4.5, 0.6, 70), 'mosquito': (0.7, 240, 2.2, 3.0, 0.35, 90),
-             'butterfly': (2.4, 95, 8.0, 8.0, 0.95, 14)}[kind]
+             'butterfly': (1.5, 95, 8.0, 8.0, 0.95, 14)}[kind]
         self.sf, base, self.wrap_t, self.eat_t, self.feed, self.prate = P
         self.speed = base * s
         self.spin = ang
@@ -4184,8 +4184,25 @@ for _k, _v in DOG_POSES.items():
     _d['ta'] = 2.9
     _d['curl'] = 0.0
     FERRET_POSES[_k] = _d
+def _belly(st, kick=0.0):
+    """Pose sur le dos, decrite a l'endroit : corps bas, tete au niveau du corps, pattes courtes repliees
+    (une fois l'animal retourne, elles pointent vers le ciel). kick : pattes qui pedalent."""
+    sx, sy, hx, hy = st['sx'], st['sy'] * 0.85, st['hx'], st['hy'] * 0.85
+    k = kick
+    return dict(st, sy=sy, hy=hy, hdx=st['hdx'] * 0.95, hdy=sy - 1, ta=2.6, curl=0.25, amp=0.25, arc=-2.0, gait=0.0,
+                feet=((sx + 5 + 4 * k, sy + 15 - 3 * k), (sx + 10 - 4 * k, sy + 17 + 2 * k),
+                      (hx + 4 - 4 * k, hy + 16 + 2 * k), (hx - 3 + 4 * k, hy + 18 - 3 * k)))
+
+
 FERRET_POSES['war'] = dict(sx=14, sy=-11, hx=-14, hy=-10, hdx=25, hdy=-10, ta=-2.3, curl=0.15, amp=0.2, bl=1.0, bt=0.62, arc=6.0,
                            gait=0.0, feet=((12, 0), (9, 0), (-15, 0), (-17, 0)))
+
+
+for _P in (POSES, DOG_POSES, GOAT_POSES, FERRET_POSES):
+    _P['belly'] = _belly(_P['stand'])
+    _P['belly2'] = _belly(_P['stand'], 1.0)
+for _k in ('belly', 'belly2'):                       # chevre : tete un peu relevee (les cornes ne rentrent pas dans le sol)
+    GOAT_POSES[_k] = dict(GOAT_POSES[_k], hdy=GOAT_POSES[_k]['sy'] + 8, ta=-1.85)
 
 
 class Cat:
@@ -5933,7 +5950,7 @@ class CatPet:
             self.zzz_t = 0.0
         if name != 'carry':
             ct.mouth = None
-        if name not in ('climb', 'flip'):
+        if name not in ('climb', 'flip', 'belly'):
             ct.spin = 0.0
         ct.knead = (name == 'knead')
         ct.vib = {'knead': 1.0, 'pet': 0.8, 'rub': 0.8, 'sleep': 0.35, 'box': 0.0}.get(name, 0.0)
@@ -6492,7 +6509,8 @@ class CatPet:
                     return self.set_state('jump')
 
         # 3) passage rapide tout pres : sursaut
-        if (calm and 650 < self.cspeed < 1400 and dist < 120 * u):
+        k_ = u / 1.75                                             # (vitesses a l'echelle de l'animal)
+        if (calm and 650 * k_ < self.cspeed < 1400 * k_ and dist < 120 * u and abs(acc) < PI):
             self.ptr_ok = self.now + 9
             ct.dir = 1 if dx >= 0 else -1
             if has('colerique'):
@@ -6511,10 +6529,74 @@ class CatPet:
             self.ptr_hover, self.ptr_ok = 0.0, self.now + 4
             return self.set_state('swat')
 
-        # 5) longue caresse : il s'endort de bonheur
+        # 5) gratouilles : allers-retours rapides du pointeur sur lui -> il se met sur le dos
+        vxc = self.cur[0] - getattr(self, 'ptr_px', self.cur[0])
+        self.ptr_px = self.cur[0]
+        sc = [t_ for t_ in getattr(self, 'scr_rev', []) if self.now - t_ < 1.3]
+        if self.over_cat() and abs(vxc) > 2.5:
+            sg = 1 if vxc > 0 else -1
+            if sg != getattr(self, 'scr_sg', sg):
+                sc.append(self.now)                              # le pointeur vient de changer de sens
+            self.scr_sg = sg
+        self.scr_rev = sc
+        if (len(sc) >= 4 and (st in self.CALM or st in ('pet', 'fchase', 'chase')) and ct.pkey is not None
+                and self.now > getattr(self, 'belly_ok', 0.0)):
+            self.scr_rev = []
+            return self.set_state('belly')
+
+        # 6) longue caresse : il s'endort de bonheur
         if st == 'pet' and self.state_t > 8 and L.energy < 0.8 and ct.pkey is not None:
             self.say('Ronron...')
             self.start_sleep()
+
+    def st_belly(self, dt):
+        """Sur le dos, pattes en l'air : on lui gratouille le ventre. Il ronronne et pedale ;
+        des qu'on arrete, il se remet sur ses pattes."""
+        ct, u = self.cat, self.u
+        t = self.state_t
+        self.vx = 0.0
+        sp = ct.poses['stand']
+        lift = 36 + sp['sy'] * 0.85 - 8.5 * sp['bt']              # ce qu'il faut descendre pour poser le dos au sol
+        if self.sub == 'a':                                       # il roule sur le cote puis sur le dos
+            k = clamp(t / 0.45, 0.0, 1.0)
+            e = k * k * (3 - 2 * k)
+            ct.set_pose('belly', 10)
+            ct.spin = -ct.dir * PI * e
+            ct.yoff = lift * e - 6 * math.sin(PI * k)
+            ct.squash = 0.15 * math.sin(PI * k)
+            if k >= 1.0:
+                self.sub, self.belly_away = 'b', 0.0
+                self.sound('purr')
+        elif self.sub == 'b':                                     # pattes en l'air, il se tortille
+            ct.spin = -ct.dir * PI + 0.07 * math.sin(t * 5)
+            ct.yoff = lift
+            scratch = self.over_cat() and self.cspeed > 60
+            ct.set_pose('belly2' if (scratch and int(t * 6) % 2) else 'belly', 12 if scratch else 5)
+            ct.eyes = 'happy' if scratch else 'open'
+            ct.wag = 0.5 if scratch else 0.15
+            ct.vib = 0.8 if scratch else 0.3
+            self.pet_heart_t = getattr(self, 'pet_heart_t', 0.0) + dt
+            if scratch and self.pet_heart_t > 0.6:
+                self.pet_heart_t = 0.0
+                self.hearts.append([ct.x + random.uniform(-15, 15) * u, ct.y - 40 * u, 0.0])
+                if random.random() < 0.4:
+                    self.sound('purr')
+            if hasattr(self, 'life'):
+                self.life.joy = min(1.0, self.life.joy + dt * 0.01)
+            self.belly_away = 0.0 if scratch else self.belly_away + dt
+            if self.belly_away > (2.5 if self.life.has('paresseux') else 1.4) or t > 25:
+                self.sub, self.state_t = 'c', 0.0
+        else:                                                     # il se remet sur ses pattes
+            k = clamp(t / 0.4, 0.0, 1.0)
+            e = k * k * (3 - 2 * k)
+            ct.set_pose('stand', 12)
+            ct.spin = -ct.dir * PI * (1 - e)
+            ct.yoff = lift * (1 - e)
+            if k >= 1.0:
+                ct.spin, ct.yoff = 0.0, 0.0
+                self.belly_ok = self.now + 4
+                self.pet_ok = self.now + 1.0
+                self.go_idle(random.uniform(1.0, 2.5), 'sit')
 
     def st_swat(self, dt):
         """Debout, la patte qui fouette l'air pour attraper le pointeur."""
@@ -6539,6 +6621,7 @@ class CatPet:
     def check_defend(self):
         ct, u = self.cat, self.u
         if (self.now > self.def_ok and self.cspeed > 1400 and abs(self.cur[0] - ct.x) < 170 * u
+                and len(getattr(self, 'scr_rev', ())) < 2 and self.state != 'belly'      # des gratouilles, pas une attaque
                 and abs(self.cur[1] - (ct.y - 25 * u)) < 150 * u):
             self.def_ok = self.now + 7
             self.set_state('defend')
@@ -6752,11 +6835,20 @@ class CatPet:
             if abs(d) <= 90 * u:
                 self.sub = 'b'
                 self.state_t_sub = self.now
-        else:
+        elif self.sub == 'b':                                      # (en l'air, on ne recalcule plus le saut)
             self.vx = 0.0
             if self.now - self.state_t_sub > 0.25:
-                self.jump_to = (self.cur[0], self.cur[1])
-                self.plan_jump(*self.jump_to)
+                # bond de chasse : il saute vers le pointeur mais retombe sur son support,
+                # sans monter plus haut qu'un vrai saut (il ne s'envole pas vers un curseur en l'air)
+                g, k_ = self.g, u / 1.75
+                h = clamp(ct.y - self.cur[1], 30 * u, 150 * k_ + 40 * u)
+                vy0 = math.sqrt(2 * g * h)
+                T = 2 * vy0 / g
+                dx = clamp(self.cur[0] - ct.x, -320 * k_, 320 * k_)
+                self.vx, self.vy = dx / T, -vy0
+                self.jump_to = (ct.x + dx, ct.y)
+                ct.pkey = None
+                ct.dir = 1 if dx >= 0 else -1
                 self.sub = 'c'
         if self.sub == 'c':
             ct.set_pose('pounce', 14)
