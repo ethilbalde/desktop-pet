@@ -109,7 +109,7 @@ class MONITORINFO(ctypes.Structure):
     _fields_ = [('cbSize', wintypes.DWORD), ('rcMonitor', wintypes.RECT), ('rcWork', wintypes.RECT), ('dwFlags', wintypes.DWORD)]
 
 
-MON = {'ox': 0, 'oy': 0, 'rect': None}        # origine (coin haut-gauche) du moniteur choisi, en coordonnées bureau
+MON = {'ox': 0, 'oy': 0, 'rect': None, 'index': 1}        # origine (coin haut-gauche) du moniteur choisi, en coordonnées bureau
 
 
 def list_monitors():
@@ -148,68 +148,118 @@ def work_area():
 
 # ------------------------------------------------------------------------ sons
 class Sound:
-    """Petits sons synthétisés en mémoire (aucun fichier), discrets et désactivables."""
+    """Petits sons synthétisés en mémoire (aucun fichier), doux et cohérents :
+    - interface (clic, objet, réussite) : notes douces accordées ensemble (do - mi - sol), très discrètes ;
+    - voix des animaux, version bébé : « miou ? » du chaton, « yip yip » du chiot, « mééé » du chevreau, « dook-dook » du furet ;
+    - petits bruits de dessin animé : « nom nom », « bzzz », « cui-cui », « fiuuu » en dormant.
+    Tous les sons sont ramenés au même niveau perçu, puis le volume suit une courbe en décibels (10 % = vraiment bas)."""
     RATE = 22050
+    # f0, f1 (Hz, glissando), duree, type, niveau relatif, enveloppe, options
+    #   type : 'tone' (harmoniques douces), 'noise' (bruit filtre)  -  env : 'pluck' (attaque nette, extinction) | 'swell' (monte puis descend)
     TABLE = {
-        'pop': (300, 900, 0.12, 0.35, 'sine', 0, True),
-        'buzz': (190, 170, 0.35, 0.16, 'saw', 45, False),
-        'chirp': (1200, 1800, 0.10, 0.22, 'sine', 0, True),
-        'crunch': (0, 0, 0.12, 0.35, 'noise', 0, True),
-        'snore': (80, 70, 0.9, 0.3, 'sine', 0, False),
-        'ding': (880, 880, 0.25, 0.28, 'sine', 0, True),
-        'boing': (200, 700, 0.3, 0.28, 'sine', 0, True),
-        'tap': (0, 0, 0.03, 0.35, 'noise', 0, True),
-        'meow': (520, 820, 0.45, 0.3, 'sine', 7, False),
-        'purr': (62, 58, 0.9, 0.3, 'saw', 24, False),
-        'hiss': (0, 0, 0.5, 0.3, 'noise', 14, False),
-        'clink': (1900, 1500, 0.22, 0.22, 'sine', 0, True),
-        'woof': (330, 150, 0.16, 0.42, 'saw', 0, True),
-        'pant': (0, 0, 0.16, 0.10, 'noise', 18, False),
-        'bleat': (440, 330, 0.7, 0.34, 'saw', 36, False),
-        'bleat_s': (470, 400, 0.3, 0.2, 'saw', 30, False),
-        'dook': (760, 520, 0.09, 0.3, 'saw', 0, True),
+        # --- interface : petites notes douces (do - mi - sol), dans le medium
+        'tap': (170, 120, 0.05, 'tone', 0.20, 'pluck', dict(h=((1, 1), (2, 0.2)), k=8)),                 # « pof » feutre (sauts, pas, clics)
+        'pop': (440, 740, 0.07, 'tone', 0.38, 'pluck', dict(k=5)),                                       # petite bulle
+        'ding': (784, 784, 0.12, 'tone', 0.36, 'pluck', dict(h=((1, 1), (2, 0.12)), k=4, pulses=3, gap=0.0, notes=(1, 1.26, 1.5))),   # « tin-tin-tin »
+        'clink': (1047, 1047, 0.14, 'tone', 0.26, 'pluck', dict(h=((1, 1), (2.76, 0.15)), k=8, pulses=2, gap=0.03, notes=(1, 1.26))),
+        'boing': (220, 440, 0.26, 'tone', 0.30, 'pluck', dict(vib=(9, 0.04), k=4, arc=True)),            # ressort, grave et court
+        # --- araignee / proies
+        'buzz': (260, 245, 0.3, 'tone', 0.14, 'swell', dict(h=((1, 1), (2, 0.3)), am=(32, 0.6))),
+        'chirp': (1319, 1568, 0.06, 'tone', 0.24, 'pluck', dict(pulses=2, gap=0.05, notes=(1, 1.12))),
+        'crunch': (440, 350, 0.08, 'tone', 0.34, 'pluck', dict(h=((1, 1), (2, 0.25)), am=(30, 0.5), pulses=2, gap=0.09, notes=(1, 0.9), k=3)),   # « nom nom »
+        'hiss': (0, 0, 0.22, 'noise', 0.20, 'swell', dict(lp=0.45)),
+        # --- chat (chaton)
+        'meow': (620, 860, 0.26, 'tone', 0.45, 'swell', dict(h=((1, 1), (2, 0.2)), vib=(7, 0.02), arc=True)),          # « miou ? »
+        'purr': (520, 640, 0.07, 'tone', 0.20, 'pluck', dict(am=(26, 0.6), pulses=2, gap=0.03, notes=(1, 1.19), k=3)),  # « mrrp »
+        'snore': (700, 520, 0.36, 'tone', 0.12, 'swell', dict(vib=(4, 0.01))),                           # « fiuuu » tout doux
+        # --- chien (chiot)
+        'woof': (540, 740, 0.11, 'tone', 0.45, 'pluck', dict(h=((1, 1), (2, 0.3)), arc=True, k=3, pulses=2, gap=0.07, notes=(1, 1.06))),  # « yip yip »
+        'pant': (0, 0, 0.11, 'noise', 0.12, 'swell', dict(lp=0.25, pulses=2, gap=0.08)),
+        # --- chevre naine (chevreau)
+        'bleat': (580, 650, 0.40, 'tone', 0.42, 'swell', dict(h=((1, 1), (2, 0.25)), vib=(9, 0.06), arc=True)),       # « mééé »
+        'bleat_s': (620, 670, 0.18, 'tone', 0.28, 'swell', dict(vib=(9, 0.05), arc=True)),
+        # --- furet
+        'dook': (880, 720, 0.05, 'tone', 0.38, 'pluck', dict(h=((1, 1), (2, 0.15)), pulses=3, gap=0.05, notes=(1, 1.06, 1.12), k=3)),
+        'dook_s': (800, 720, 0.045, 'tone', 0.22, 'pluck', dict(pulses=2, gap=0.06, k=3)),
     }
+    # un meme son ne revient pas avant ce delai (secondes) : rien ne tourne en boucle ni ne devient agacant
+    COOLDOWN = {'tap': 0.4, 'pop': 0.4, 'ding': 0.8, 'clink': 1.0, 'boing': 2.0, 'buzz': 6.0, 'chirp': 4.0, 'crunch': 1.5,
+                'hiss': 3.0, 'meow': 8.0, 'purr': 5.0, 'snore': 7.0, 'woof': 7.0, 'pant': 5.0, 'bleat': 9.0, 'bleat_s': 6.0,
+                'dook': 7.0, 'dook_s': 5.0}
+    RANGE_DB = 36.0                       # 100 % -> 10 % = -32 dB environ
 
     def __init__(self):
         self.on = winsound is not None
-        self.volume = 0.6                 # 0.1 .. 1.0
+        self.volume = 0.3                 # 0.1 .. 1.0
         self.cache = {}
         self.last = 0.0
+        self.next_ok = {}
         self.dir = None
 
     def set_volume(self, v):
-        self.volume = clamp(round(v, 1), 0.1, 1.0)
+        self.volume = clamp(round(v * 20) / 20.0, 0.1, 1.0)   # par pas de 5 %
         self.cache = {}                   # les sons sont régénérés au nouveau volume
 
+    def gain(self):
+        """Volume percu : courbe en decibels (lineaire, 10 % etait encore beaucoup trop fort)."""
+        return 10 ** (-self.RANGE_DB * (1.0 - self.volume) / 20.0)
+
     def _make(self, name):
-        f0, f1, dur, vol, kind, trem, decay = self.TABLE[name]
-        n = int(self.RATE * dur)
+        f0, f1, dur, kind, level, envk, o = self.TABLE[name]
+        R = self.RATE
+        pulses, gap = o.get('pulses', 1), o.get('gap', 0.0)
+        n1, ng = int(R * dur), int(R * gap)
+        harm = o.get('h', ((1, 1),))
+        vib_f, vib_d = o.get('vib', (0, 0))
+        am_f, am_d = o.get('am', (0, 0))
+        bend = o.get('bend', 0.0)                       # le miaou retombe a la fin
+        k = o.get('k', 5)
+        lp = o.get('lp', 1.0)
+        att, rel = int(R * 0.004), int(R * 0.006)        # pas de « clic » au debut ni a la fin
+        sig = []
+        notes = o.get('notes', (1,))
+        for p_ in range(pulses):
+            nm = notes[p_ % len(notes)]                 # chaque coup peut etre une autre note (arpege)
+            ph = [0.0] * len(harm)
+            y = 0.0
+            for i in range(n1):
+                t = i / n1
+                f = (f0 + (f1 - f0) * (math.sin(PI * t) if o.get('arc') else t)) * nm   # arc : monte puis redescend (« miou ? »)
+                if bend:
+                    f *= 1.0 + bend * max(0.0, t - 0.6) / 0.4
+                if vib_f:
+                    f *= 1.0 + vib_d * math.sin(2 * PI * vib_f * i / R)
+                if kind == 'noise':
+                    y += lp * (random.uniform(-1, 1) - y)
+                    v = y
+                else:
+                    v = 0.0
+                    for j, (r_, a_) in enumerate(harm):
+                        ph[j] += 2 * PI * f * r_ / R
+                        v += a_ * math.sin(ph[j])
+                env = math.exp(-k * t) if envk == 'pluck' else math.sin(PI * t) ** 0.8
+                env *= min(1.0, i / max(1, att)) * min(1.0, (n1 - i) / max(1, rel))
+                if am_f:
+                    env *= 1.0 - am_d * (0.5 + 0.5 * math.sin(2 * PI * am_f * i / R))
+                sig.append(v * env)
+            if p_ < pulses - 1:
+                sig.extend([0.0] * ng)
+        rms = math.sqrt(sum(x * x for x in sig) / max(1, len(sig))) or 1.0
+        g = 0.22 / rms * level * self.gain()                # meme niveau percu pour tous les sons, puis le volume
         out = bytearray()
-        ph = 0.0
-        for i in range(n):
-            t = i / n
-            ph += 2 * PI * (f0 + (f1 - f0) * t) / self.RATE
-            if kind == 'sine':
-                v = math.sin(ph)
-            elif kind == 'saw':
-                v = ((ph / (2 * PI)) % 1.0) * 2 - 1
-            else:
-                v = random.uniform(-1, 1)
-            env = (1 - t) if decay else math.sin(PI * t)
-            if trem:
-                v *= 0.6 + 0.4 * math.sin(2 * PI * trem * i / self.RATE)
-            out += struct.pack('<h', int(clamp(v * env * vol * (self.volume / 0.6), -1.0, 1.0) * 32767))
+        for x in sig:
+            out += struct.pack('<h', int(math.tanh(x * g) * 32767))
         buf = io.BytesIO()
         with wavemod.open(buf, 'wb') as w:
             w.setnchannels(1)
             w.setsampwidth(2)
-            w.setframerate(self.RATE)
+            w.setframerate(R)
             w.writeframes(bytes(out))
         return buf.getvalue()
 
     def _path(self, name):
         """winsound ne sait pas jouer un son en mémoire en asynchrone : on passe par de petits .wav temporaires."""
-        key = (name, int(round(self.volume * 10)))
+        key = (name, int(round(self.volume * 100)))
         if key not in self.cache:
             if self.dir is None:
                 self.dir = tempfile.mkdtemp(prefix='araignee_snd_')
@@ -220,13 +270,14 @@ class Sound:
             self.cache[key] = path
         return self.cache[key]
 
-    def play(self, name):
+    def play(self, name, force=False):
         if not self.on or winsound is None or name not in self.TABLE:
             return
         now = time.perf_counter()
-        if now - self.last < 0.12:
+        if not force and (now - self.last < 0.2 or now < self.next_ok.get(name, 0.0)):
             return
         self.last = now
+        self.next_ok[name] = now + self.COOLDOWN.get(name, 1.0)
         try:
             winsound.PlaySound(self._path(name), winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_NODEFAULT)
         except Exception:
@@ -1171,7 +1222,7 @@ class Basket:
         if hover:
             fs = -max(11, int(12 * self.s / 0.62))
             for q, txt in enumerate(('Clic : une proie', 'Clic droit : menu', 'Ctrl + glisser : nourrir')):
-                yy = y + 46 * s + q * (abs(fs) + 3)
+                yy = y - 52 * s - (2 - q) * (abs(fs) + 3)
                 c.create_text(x + 1, yy + 1, text=txt, fill='#000000', font=('Segoe UI', fs, 'bold'))
                 c.create_text(x, yy, text=txt, fill='#ffffff', font=('Segoe UI', fs, 'bold'))
 
@@ -1767,6 +1818,260 @@ class ClipCanvas:
         return None
 
 
+try:
+    from PIL import Image as _PI, ImageDraw as _PD, ImageFont as _PF
+except Exception:                                   # sans Pillow : dessin direct (bords en escalier)
+    _PI = _PD = _PF = None
+
+_RGB_CACHE = {}
+_FONT_CACHE = {}
+
+
+def _rgb(col):
+    if not col:
+        return None
+    r = _RGB_CACHE.get(col)
+    if r is None:
+        if isinstance(col, str) and col.startswith('#') and len(col) == 7:
+            r = (int(col[1:3], 16), int(col[3:5], 16), int(col[5:7], 16))
+        else:
+            try:
+                v = tk._default_root.winfo_rgb(col)
+                r = (v[0] >> 8, v[1] >> 8, v[2] >> 8)
+            except Exception:
+                r = (255, 255, 255)
+        _RGB_CACHE[col] = r
+    return r
+
+
+class AACanvas:
+    """Canvas « lisse » : meme interface que tk.Canvas (create_polygon / line / oval / arc / text), mais dessine en 3x
+    avec Pillow puis reduit : plus de bords en escalier. Le resultat est pose sur le vrai canvas comme une image."""
+    SS = 3
+
+    def __init__(self, c, x0, y0, w, h, key=None):
+        self.c = c
+        self.x0, self.y0 = int(x0), int(y0)
+        self.w, self.h = max(8, int(w)), max(8, int(h))
+        S = self.SS
+        self.img = _PI.new('RGBA', (self.w * S, self.h * S), (0, 0, 0, 0) if key is None else _rgb(key) + (255,))
+        self.d = _PD.Draw(self.img)
+
+    def _pts(self, a):
+        if len(a) == 1 and not isinstance(a[0], (int, float)):
+            a = a[0]
+        v = [float(q) for q in a]
+        S = self.SS
+        return [((v[i] - self.x0) * S, (v[i + 1] - self.y0) * S) for i in range(0, len(v) - 1, 2)]
+
+    def _stroke(self, pts, w, col, closed=False, caps=False):
+        S = self.SS
+        wi = max(1, int(round(w * S)))
+        seq = pts + ([pts[0]] if closed else [])
+        if len(seq) >= 2:
+            self.d.line(seq, fill=col, width=wi, joint='curve')
+        if caps and wi > 2:
+            r = wi / 2.0
+            for p in (pts[0], pts[-1]):
+                self.d.ellipse([p[0] - r, p[1] - r, p[0] + r, p[1] + r], fill=col)
+
+    def create_polygon(self, *args, **kw):
+        pts = self._pts(args)
+        if len(pts) < 3:
+            return None
+        if kw.get('smooth'):
+            pts = ClipCanvas._chaikin(pts, True)
+        fill, outline = _rgb(kw.get('fill')), _rgb(kw.get('outline'))
+        if fill:
+            self.d.polygon(pts, fill=fill)
+        if outline and kw.get('width', 1):
+            self._stroke(pts, float(kw.get('width', 1)), outline, closed=True)
+        return None
+
+    def create_line(self, *args, **kw):
+        pts = self._pts(args)
+        if len(pts) < 2:
+            return None
+        if kw.get('smooth') and len(pts) > 2:
+            pts = ClipCanvas._chaikin(pts, False)
+        col = _rgb(kw.get('fill', '#000000'))
+        self._stroke(pts, float(kw.get('width', 1)), col, caps=True)
+        return None
+
+    def create_oval(self, x0, y0, x1, y1, **kw):
+        S = self.SS
+        box = [(x0 - self.x0) * S, (y0 - self.y0) * S, (x1 - self.x0) * S, (y1 - self.y0) * S]
+        fill, outline = _rgb(kw.get('fill')), _rgb(kw.get('outline'))
+        wd = max(1, int(round(float(kw.get('width', 1)) * S)))
+        self.d.ellipse(box, fill=fill, outline=outline, width=wd if outline else 0)
+        return None
+
+    def create_rectangle(self, x0, y0, x1, y1, **kw):
+        S = self.SS
+        box = [(x0 - self.x0) * S, (y0 - self.y0) * S, (x1 - self.x0) * S, (y1 - self.y0) * S]
+        fill, outline = _rgb(kw.get('fill')), _rgb(kw.get('outline'))
+        wd = max(1, int(round(float(kw.get('width', 1)) * S)))
+        self.d.rectangle(box, fill=fill, outline=outline, width=wd if outline else 0)
+        return None
+
+    def create_arc(self, x0, y0, x1, y1, **kw):
+        S = self.SS
+        box = [(x0 - self.x0) * S, (y0 - self.y0) * S, (x1 - self.x0) * S, (y1 - self.y0) * S]
+        st, ex = float(kw.get('start', 0)), float(kw.get('extent', 90))
+        col = _rgb(kw.get('outline') or kw.get('fill') or '#000000')
+        self.d.arc(box, -(st + ex), -st, fill=col, width=max(1, int(round(float(kw.get('width', 1)) * S))))
+        return None
+
+    def create_text(self, x, y, **kw):
+        S = self.SS
+        f = kw.get('font') or ('Segoe UI', -12)
+        size = int(abs(f[1]) * S)
+        key = (size, 'sym' if 'Symbol' in str(f[0]) else 'ui')
+        font = _FONT_CACHE.get(key)
+        if font is None:
+            for name in (('seguisym.ttf', 'segoeui.ttf') if key[1] == 'sym' else ('segoeuib.ttf', 'segoeui.ttf')):
+                try:
+                    font = _PF.truetype(name, size)
+                    break
+                except Exception:
+                    font = None
+            _FONT_CACHE[key] = font or False
+        if font:
+            self.d.text(((x - self.x0) * S, (y - self.y0) * S), str(kw.get('text', '')), font=font, fill=_rgb(kw.get('fill', '#ffffff')), anchor='mm')
+        return None
+
+    def render(self):
+        """Image finale (reduite) : les bords sont de vrais degrades de transparence."""
+        return self.img.resize((self.w, self.h), _PI.LANCZOS)
+
+    def flush(self):                                  # variante sans fenetre a part : posee sur le canvas (fond opaque)
+        import base64
+        buf = io.BytesIO()
+        self.render().save(buf, 'PNG', compress_level=1)
+        ph = tk.PhotoImage(data=base64.b64encode(buf.getvalue()).decode('ascii'))
+        self.c.create_image(self.x0, self.y0, image=ph, anchor='nw')
+        return ph
+
+
+class BITMAPINFOHEADER(ctypes.Structure):
+    _fields_ = [('biSize', wintypes.DWORD), ('biWidth', ctypes.c_long), ('biHeight', ctypes.c_long), ('biPlanes', wintypes.WORD),
+                ('biBitCount', wintypes.WORD), ('biCompression', wintypes.DWORD), ('biSizeImage', wintypes.DWORD),
+                ('biXPelsPerMeter', ctypes.c_long), ('biYPelsPerMeter', ctypes.c_long), ('biClrUsed', wintypes.DWORD), ('biClrImportant', wintypes.DWORD)]
+
+
+class BLENDFUNCTION(ctypes.Structure):
+    _fields_ = [('BlendOp', ctypes.c_ubyte), ('BlendFlags', ctypes.c_ubyte), ('SourceConstantAlpha', ctypes.c_ubyte), ('AlphaFormat', ctypes.c_ubyte)]
+
+
+class SpriteLayer:
+    """Petite fenetre Windows a transparence par pixel (UpdateLayeredWindow) : l'animal y est affiche avec de vrais bords doux,
+    sans liseré, par-dessus le bureau. Elle laisse passer les clics sauf quand la souris est sur l'animal."""
+
+    def __init__(self):
+        self.hwnd = None
+        self.ok = True
+        self.vis = False
+        self.solid = False
+        self.hdc = None
+        self.bmp = None
+        self.bits = ctypes.c_void_p()
+        self.cap = (0, 0)
+
+    def _setup(self):
+        u32, g32 = ctypes.windll.user32, ctypes.windll.gdi32
+        u32.CreateWindowExW.argtypes = [wintypes.DWORD, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD, ctypes.c_int, ctypes.c_int,
+                                        ctypes.c_int, ctypes.c_int, wintypes.HWND, wintypes.HMENU, wintypes.HINSTANCE, wintypes.LPVOID]
+        u32.CreateWindowExW.restype = wintypes.HWND
+        u32.UpdateLayeredWindow.argtypes = [wintypes.HWND, wintypes.HDC, ctypes.POINTER(wintypes.POINT), ctypes.POINTER(wintypes.SIZE), wintypes.HDC,
+                                            ctypes.POINTER(wintypes.POINT), wintypes.DWORD, ctypes.POINTER(BLENDFUNCTION), wintypes.DWORD]
+        u32.UpdateLayeredWindow.restype = wintypes.BOOL
+        u32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
+        u32.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, wintypes.UINT]
+        u32.GetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int]
+        u32.GetWindowLongW.restype = ctypes.c_long
+        u32.SetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_long]
+        u32.DestroyWindow.argtypes = [wintypes.HWND]
+        g32.CreateCompatibleDC.argtypes = [wintypes.HDC]
+        g32.CreateCompatibleDC.restype = wintypes.HDC
+        g32.CreateDIBSection.argtypes = [wintypes.HDC, ctypes.c_void_p, wintypes.UINT, ctypes.POINTER(ctypes.c_void_p), wintypes.HANDLE, wintypes.DWORD]
+        g32.CreateDIBSection.restype = wintypes.HBITMAP
+        g32.SelectObject.argtypes = [wintypes.HDC, wintypes.HGDIOBJ]
+        g32.SelectObject.restype = wintypes.HGDIOBJ
+        g32.DeleteObject.argtypes = [wintypes.HGDIOBJ]
+        g32.DeleteDC.argtypes = [wintypes.HDC]
+        # LAYERED | TRANSPARENT | TOPMOST | TOOLWINDOW | NOACTIVATE
+        self.hwnd = u32.CreateWindowExW(0x80000 | 0x20 | 0x8 | 0x80 | 0x08000000, 'STATIC', 'AraigneeSprite', 0x80000000, 0, 0, 1, 1, None, None, None, None)
+        if not self.hwnd:
+            self.ok = False
+            return
+        self.hdc = g32.CreateCompatibleDC(None)
+        atexit.register(self.close)
+
+    def _dib(self, w, h):
+        g32 = ctypes.windll.gdi32
+        if self.bmp:
+            g32.SelectObject(self.hdc, self.old)
+            g32.DeleteObject(self.bmp)
+        bi = BITMAPINFOHEADER(40, w, -h, 1, 32, 0, 0, 0, 0, 0, 0)
+        self.bmp = g32.CreateDIBSection(self.hdc, ctypes.byref(bi), 0, ctypes.byref(self.bits), None, 0)
+        self.old = g32.SelectObject(self.hdc, self.bmp)
+        self.cap = (w, h)
+
+    def show(self, img, x, y, solid=False):
+        """Affiche l'image RGBA (pixels en coordonnees ecran) ; False si ca ne marche pas (on retombe sur le dessin direct)."""
+        try:
+            if not self.ok:
+                return False
+            u32 = ctypes.windll.user32
+            if self.hwnd is None:
+                self._setup()
+                if not self.ok:
+                    return False
+            w, h = img.size
+            if (w, h) != self.cap:
+                self._dib(w, h)
+            data = img.tobytes('raw', 'BGRa')
+            ctypes.memmove(self.bits, data, len(data))
+            pt, sz, src, bf = wintypes.POINT(int(x), int(y)), wintypes.SIZE(w, h), wintypes.POINT(0, 0), BLENDFUNCTION(0, 0, 255, 1)
+            if not u32.UpdateLayeredWindow(self.hwnd, None, ctypes.byref(pt), ctypes.byref(sz), self.hdc, ctypes.byref(src), 0, ctypes.byref(bf), 2):
+                self.ok = False
+                return False
+            if solid != self.solid:
+                self.set_solid(solid)
+            if not self.vis:
+                u32.ShowWindow(self.hwnd, 4)
+                u32.SetWindowPos(self.hwnd, -1, 0, 0, 0, 0, 0x13)
+                self.vis = True
+            return True
+        except Exception:
+            self.ok = False
+            return False
+
+    def set_solid(self, solid):
+        """solid = la souris est sur l'animal : la fenetre capte les clics (sinon ils traversent jusqu'aux autres applications)."""
+        self.solid = solid
+        if self.hwnd:
+            u32 = ctypes.windll.user32
+            ex = u32.GetWindowLongW(self.hwnd, -20)
+            u32.SetWindowLongW(self.hwnd, -20, (ex & ~0x20) if solid else (ex | 0x20))
+
+    def hide(self):
+        if self.hwnd and self.vis:
+            ctypes.windll.user32.ShowWindow(self.hwnd, 0)
+            self.vis = False
+
+    def close(self):
+        try:
+            if self.hwnd:
+                ctypes.windll.user32.DestroyWindow(self.hwnd)
+                self.hwnd = None
+            if self.bmp:
+                ctypes.windll.gdi32.DeleteObject(self.bmp)
+                self.bmp = None
+        except Exception:
+            pass
+
+
 class TagCanvas:
     """Enveloppe d'un Canvas : tout ce qui est dessiné reçoit une étiquette (pour l'effacer par couche)."""
 
@@ -2057,10 +2362,15 @@ class Pet:
             consumed = True
             idx = self.menu_row()
             items = self.menu_items()
-            self.menu_open = False
+            if idx is not None and str(items[idx][1]).startswith('slider:'):
+                self.slider_start(items[idx][1][7:])            # curseur : on le fait glisser, le menu reste ouvert
+                idx = None
+            else:
+                self.menu_open = False
             if idx is not None and items[idx][1]:
                 self.sound('tap')
                 self.menu_action(items[idx][1])
+        self.slider_tick(btn)
         if pressed2:
             if self.hover_bk:
                 self.open_menu('basket')
@@ -2882,12 +3192,12 @@ class Pet:
             ('2e araignee : ' + ('oui' if self.comp_on else 'non'), 'comp'),
             ('Reprendre' if self.paused else 'Pause', 'pause'),
             ('Quitter', 'quit'),
-        ])
+        ], self)
 
     def menu_geom(self):
-        m = clamp(self.s / 1.4, 0.9, 1.5)
+        m = getattr(self, 'menu_m_lock', None) or clamp(self.s / 1.4, 0.9, 1.5)   # fige pendant qu'on regle la taille
         items = self.menu_items()
-        w, rh = 210 * m, 26 * m
+        w, rh = (290 if hasattr(self, 'life') else 250) * m, 26 * m
         h = rh * len(items) + 8 * m
         l, t, r, b = self.area
         x = clamp(self.menu_pos[0], l + 4, r - w - 4)
@@ -2906,14 +3216,41 @@ class Pet:
 
     def open_menu(self, ctx='spider'):
         self.menu_ctx = ctx
-        self.menu_page = 'main'
+        self.menu_page = 'out' if ctx == 'basket' else 'main'
         self.menu_pos = (self.cur[0] + 8, self.cur[1] + 8)
         self.menu_open = True
         self.sound('tap')
 
     def menu_action(self, act):
         sp = self.sp
-        if act == 'show':
+        if act == 'tabclick':
+            self.click_tab()
+        elif act == 'bug':
+            if getattr(self, 'bug_cb', None):
+                self.bug_cb()
+        elif act == 'launcher':
+            PREFS['launcher'] = not PREFS.get('launcher', True)
+            if self.cfg_save:
+                self.cfg_save({'show_launcher': PREFS['launcher']})
+            self.menu_page, self.menu_open = 'settings', True
+        elif act == 'monitor':
+            n = monitor_count()
+            if n > 1 and self.cfg_save:
+                if hasattr(self, 'life_save'):
+                    self.life_save()
+                self.cfg_save({'monitor': MON.get('index', 1) % n + 1})
+                restart_soon()
+                if self.quit_cb:
+                    self.quit_cb()
+        elif act == 'quality':
+            self.aa_on = not self.aa_on
+            if self.cfg_save:
+                self.cfg_save({'aa': self.aa_on})
+            self.menu_page, self.menu_open = 'settings', True
+        elif act == 'update':
+            UPDATER.start()
+            self.menu_page, self.menu_open = 'settings', True
+        elif act == 'show':
             self.dance_ok = 0.0
             {'peacock': self.start_dance, 'regius': self.start_regius_show, 'widow': self.start_hang,
              'tarantula': self.start_threat, 'wolf': self.start_unload, 'pholcus': self.start_whirl,
@@ -2925,7 +3262,7 @@ class Pet:
             self.menu_page = act
             self.menu_open = True
         elif act == 'back':
-            self.menu_page = 'main'
+            self.menu_page = 'animal' if self.menu_page in ('race', 'coat') else 'main'
             self.menu_open = True
         elif act.startswith('race:'):
             self.menu_page = 'main'
@@ -3514,6 +3851,44 @@ class Pet:
         return (tuple(sg.built for sg in self.web.segs), self.dew_on,
                 int(self.now * 4) if self.dew_on else 0, int(self.now * 40) if jit else -1)
 
+    def slider_start(self, key):
+        self.slider_key = key
+        self.menu_m_lock = self.menu_geom()[5]
+        self.slider_set()
+
+    def slider_track(self):
+        x, y, w, h, rh, m, items = self.menu_geom()
+        return x + w * 0.30, x + w - 58 * m
+
+    def slider_set(self):
+        a, b = self.slider_track()
+        f = clamp((self.cur[0] - a) / max(1.0, b - a), 0.0, 1.0)
+        if self.slider_key == 'vol':
+            self.snd.set_volume(0.1 + 0.9 * f)
+            if winsound is not None:
+                self.snd.on = True
+        else:
+            self.set_scale(0.8 + 2.4 * f)
+
+    def slider_tick(self, btn):
+        key = getattr(self, 'slider_key', None)
+        if not key:
+            return
+        if btn and self.menu_open:
+            self.slider_set()
+            return
+        self.slider_key, self.menu_m_lock = None, None           # bouton relache : on garde la valeur
+        if key == 'vol':
+            self.snd.play('pop', force=True)                     # apercu du nouveau volume
+        self.save_config()
+
+    def click_tab(self):
+        keys = [k for k, _ in menu_tabs(self.animal)]
+        x, y, w, h, rh, m, items = self.menu_geom()
+        i = int((self.cur[0] - x - 3) // ((w - 6) / len(keys)))
+        self.menu_page = keys[int(clamp(i, 0, len(keys) - 1))]
+        self.menu_open = True
+
     def draw_menu(self, c):
         if not self.menu_open:
             return
@@ -3523,6 +3898,46 @@ class Pet:
         hov = self.menu_row()
         for i, (label, act) in enumerate(items):
             ry = y + 4 * m + i * rh
+            if label == '\x00tabs':                                  # bande d'onglets
+                tabs = menu_tabs(self.animal)
+                cur_key = menu_active(self.menu_page, self.animal)
+                cw = (w - 6) / len(tabs)
+                for k, (key, name) in enumerate(tabs):
+                    tx0 = x + 3 + k * cw
+                    hot = (i == hov and tx0 <= self.cur[0] < tx0 + cw)
+                    fill = '#7a62a8' if key == cur_key else ('#4a3f5e' if hot else '#322e3a')
+                    c.create_rectangle(tx0 + 1, ry + 1, tx0 + cw - 1, ry + rh - 1, fill=fill, outline='')
+                    c.create_text(tx0 + cw / 2, ry + rh / 2, text=name, fill='#ffffff' if (key == cur_key or hot) else '#b9b2c2',
+                                  font=('Segoe UI', -int(12 * m), 'bold'))
+                continue
+            if label.startswith('G:'):                                # jauge : G:nom:valeur:inverse
+                _, name, val, inv = label.split(':')
+                v = clamp(float(val), 0.0, 1.0)
+                good = 1.0 - v if inv == '1' else v
+                col = '#6bcf7f' if good > 0.6 else ('#f0c24a' if good > 0.3 else '#ee5a5a')
+                cy = ry + rh / 2
+                c.create_text(x + 12 * m, cy, text=name, anchor='w', fill='#e6e0ee', font=('Segoe UI', -int(13 * m)))
+                bx0, bx1 = x + w * 0.36, x + w - 14 * m
+                c.create_rectangle(bx0, cy - 6 * m, bx1, cy + 6 * m, fill='#151318', outline='#6a6475')
+                if v > 0.01:
+                    c.create_rectangle(bx0 + 1, cy - 5 * m, bx0 + 1 + (bx1 - bx0 - 2) * v, cy + 5 * m, fill=col, outline='')
+                continue
+            if label.startswith('S:'):                                # curseur : S:nom:valeur:texte
+                _, name, val, txt = label.split(':', 3)
+                v = clamp(float(val), 0.0, 1.0)
+                cy = ry + rh / 2
+                drag = getattr(self, 'slider_key', None) == act[7:]
+                if i == hov or drag:
+                    c.create_rectangle(x + 3, ry, x + w - 3, ry + rh, fill='#3a3346', outline='')
+                c.create_text(x + 12 * m, cy, text=name, anchor='w', fill='#ffffff', font=('Segoe UI', -int(14 * m), 'bold'))
+                bx0, bx1 = self.slider_track()
+                kx = bx0 + (bx1 - bx0) * v
+                c.create_rectangle(bx0, cy - 2.5 * m, bx1, cy + 2.5 * m, fill='#151318', outline='#6a6475')
+                c.create_rectangle(bx0, cy - 2.5 * m, kx, cy + 2.5 * m, fill='#9d84d0', outline='')
+                kr = (8 if drag else 7) * m
+                c.create_oval(kx - kr, cy - kr, kx + kr, cy + kr, fill='#ffffff', outline='#7a62a8', width=2)
+                c.create_text(x + w - 10 * m, cy, text=txt, anchor='e', fill='#e6e0ee', font=('Segoe UI', -int(12 * m), 'bold'))
+                continue
             if act and i == hov:
                 c.create_rectangle(x + 3, ry, x + w - 3, ry + rh, fill='#5a4a72', outline='')
             c.create_text(x + 12 * m, ry + rh / 2, text=label, anchor='w',
@@ -3827,6 +4242,9 @@ class Cat:
         self.climbing = False
         self.cph = 0.0
         self.clw = 0.0
+        self.expr = None          # expression drole : wide, derp, wink, smug, sad, heart, dizzy
+        self.blep = 0.0           # langue tiree
+        self.kid = 0.0            # 1 = bebe, 0.45 = jeune, 0 = adulte : corps court, grosse tete
         self._cl_on = False
         self.cl = []              # pattes en escalade : [x, y, posee, t, x0]
         self.plant_n = 0
@@ -3952,6 +4370,17 @@ class Cat:
                     self.E[key] = val + (C[key] - val) * cw
         else:
             self._cl_on = False
+        if self.kid > 0.01:                                  # bebe / jeune : corps court, pattes courtes
+            E, k_ = self.E, self.kid
+            f_, g_ = 1 - 0.28 * k_, 1 - 0.2 * k_
+            sx0 = E['sx']
+            E['sx'] *= f_
+            E['hx'] *= f_
+            E['hdx'] -= sx0 * (1 - f_)
+            E['sy'] *= g_
+            E['hy'] *= g_
+            E['hdy'] *= 1 - 0.1 * k_
+            E['feet'] = [(fx * f_, fy * g_) for fx, fy in E['feet']]
         if self.dog and self.P['gait'] > 0.3 and grounded and vx_abs > 3 and self.gal < 0.5:
             up = 1.1 * math.sin(4 * PI * self.gp) * clamp(vx_abs / (60 * self.u / 1.75), 0.0, 1.0)   # le corps monte au passage des pattes
             self.E['sy'] -= up
@@ -4080,14 +4509,15 @@ class Cat:
         # chien : marche en sequence laterale (arriere gauche, avant gauche, arriere droite, avant droite), 3 pattes au sol
         phs = ((8, 0.25), (6, 0.75), (-9, 0.0), (-11, 0.5)) if self.dog else ((8, 0.0), (6, 0.5), (-9, 0.5), (-11, 0.0))
         duty = 0.7 if self.dog else 0.6
+        kf = 1 - 0.28 * self.kid
         for i, (xc, ph0) in enumerate(phs):
             ph = (self.gp + ph0) % 1.0
-            sl = self.sl
+            sl = self.sl * (1 - 0.25 * self.kid)
             if ph < duty:
-                gx, gy = xc + sl * (0.5 - ph / duty), 0.0
+                gx, gy = xc * kf + sl * (0.5 - ph / duty), 0.0
             else:
                 t = (ph - duty) / (1 - duty)
-                gx, gy = xc - sl * 0.5 + sl * t, -(6 if self.dog else 5) * math.sin(PI * t) * (sl / 10)
+                gx, gy = xc * kf - sl * 0.5 + sl * t, -(6 if self.dog else 5) * math.sin(PI * t) * (sl / 10)
             fx, fy = P['feet'][i]
             out.append([fx + (gx - fx) * gw, fy + (gy - fy) * gw])
         if self.paw > 0.01:                                  # patte avant levée vers le visage (toilette, coup de patte)
@@ -4133,12 +4563,14 @@ class Cat:
         ferret = self.ferret
         lk = 1.0 if goat else (0.68 if ferret else (1.12 if dog else 1.0))
         base, dark, ol = co['base'], co['dark'], co['ol']
+        if self.kid > 0.01:
+            base = mix(base, '#ffffff', 0.22 * self.kid)           # pelage de bebe plus clair, duveteux
         ow = max(2, int(round(1.35 * u)))
         feet = self.feet_pos()
         pawc = self.paws_col(co)
         legc = dark if (co['pat'] == 'points' or co.get('socks')) else base
         s_y = math.sin(self.yaw)
-        cute = self.cute
+        cute = self.cute or self.kid > 0.5                          # un bebe a toujours les joues roses
         dim = lambda col: mix(col, '#000000', 0.2)
         items = []
 
@@ -4187,7 +4619,7 @@ class Cat:
         for i in range(7):
             a = self.tail[i]
             zq = math.sin(self.tp * 1.3 - i * 0.7) * sw * (0.4 + i * 0.35) * 2.4
-            tp3.append((tp3[-1][0] + math.cos(a) * (1.5 if goat else (3.4 if ferret else 5.4)), tp3[-1][1] + math.sin(a) * (1.5 if goat else (3.4 if ferret else 5.4)), zq))
+            tp3.append((tp3[-1][0] + math.cos(a) * (1.5 if goat else (3.4 if ferret else 5.4)) * (1 - 0.3 * self.kid), tp3[-1][1] + math.sin(a) * (1.5 if goat else (3.4 if ferret else 5.4)) * (1 - 0.3 * self.kid), zq))
         tp2 = [self.P3(*q) for q in tp3]
         tail_col = dark if co['pat'] == 'points' else base
         if co.get('tail'):
@@ -4208,8 +4640,8 @@ class Cat:
         mx, my = (P['sx'] + P['hx']) / 2, (P['sy'] + P['hy']) / 2 - P['arc']
         ang = math.atan2(P['sy'] - P['hy'], P['sx'] - P['hx'])
         ln = math.hypot(P['sx'] - P['hx'], P['sy'] - P['hy']) / 2 * P['bl'] + (9.8 if goat else (9.5 if ferret else (10.5 if dog else 9.0)))
-        bt = (11.2 if goat else 10.4) * P['bt']
-        rz = (9.4 if goat else 8.6) * P['bt']
+        bt = (11.2 if goat else 10.4) * P['bt'] * (1.0 + 0.15 * self.kid)
+        rz = (9.4 if goat else 8.6) * P['bt'] * (1.0 + 0.15 * self.kid)
         ca_, sa_ = math.cos(ang), math.sin(ang)
         nx_, ny_ = -sa_, ca_
 
@@ -4259,7 +4691,7 @@ class Cat:
 
         # ---- tête (sphère aplatie) : peut se tourner indépendamment du corps
         hx0, hy0 = P['hdx'], P['hdy']
-        R = (12.0 if goat else (8.8 if ferret else (12.6 if dog else 12.4))) * (1.12 if cute else 1.0)
+        R = (12.0 if goat else (8.8 if ferret else (12.6 if dog else 12.4))) * (1.12 if cute else 1.0) * (1.0 + 0.3 * self.kid)
         self.hshift = (self.look[0] * 1.5 * u, self.look[1] * 1.2 * u)
         dl = self.hyaw - self.yaw
         cd, sd = math.cos(dl), math.sin(dl)
@@ -4334,8 +4766,8 @@ class Cat:
                 m = Pp(1.30, 0.0, 0.58 + 0.10 * opn)
                 blob(m, 0.34 * R * u * fxx, (0.10 + 0.24 * opn) * R * u, '#8a2a3c')
                 blob((m[0], m[1] + 0.10 * R * u * opn), 0.2 * R * u * fxx, 0.1 * R * u * opn, '#ff7f96', '')
-            elif self.tng > 0.25:                                # langue qui pend
-                ry_ = 0.26 * R * u * self.tng
+            elif max(self.tng, self.blep) > 0.25:                # langue qui pend
+                ry_ = 0.26 * R * u * max(self.tng, self.blep)
                 tp_ = Pp(1.30, 0.0, 0.60)
                 tc = (tp_[0], tp_[1] + ry_ * 0.7)
                 blob(tc, 0.17 * R * u * fxx, ry_, '#ff7f96')
@@ -4380,6 +4812,9 @@ class Cat:
                 m = HP(1.16, 0.0, 0.58 + 0.08 * opn)
                 blob(m, 0.30 * R * u * fxx, (0.08 + 0.22 * opn) * R * u, '#8a2a3c')
                 blob((m[0], m[1] + 0.08 * R * u * opn), 0.17 * R * u * fxx, 0.08 * R * u * opn, '#ff7f96', '')
+            if self.blep > 0.3 and opn <= 0.2:                   # langue tiree
+                tp_ = HP(1.12, 0.0, 0.60)
+                blob((tp_[0], tp_[1] + 0.12 * R * u * self.blep), 0.12 * R * u * fxx, 0.15 * R * u * self.blep, '#ff7f96')
             blob(nose, 0.24 * R * u * fxx, 0.17 * R * u, '#4a3a40')
             for sd_ in (-1, 1):
                 blob(HP(1.50, sd_ * 0.11, 0.22), 0.05 * R * u * fxx, 0.04 * R * u, '#150f12', '', 8)
@@ -4420,6 +4855,9 @@ class Cat:
                 m = HP(1.0, 0.0, 0.56 + 0.06 * opn)
                 blob(m, 0.24 * R * u * fxx, (0.06 + 0.20 * opn) * R * u, '#8a2a3c')
                 blob((m[0], m[1] + 0.07 * R * u * opn), 0.14 * R * u * fxx, 0.07 * R * u * opn, '#ff7f96', '', 8)
+            if self.blep > 0.3 and opn <= 0.2:                   # langue tiree
+                tp_ = HP(1.0, 0.0, 0.56)
+                blob((tp_[0], tp_[1] + 0.12 * R * u * self.blep), 0.1 * R * u * fxx, 0.14 * R * u * self.blep, '#ff7f96')
             blob(nose, 0.17 * R * u * fxx, 0.12 * R * u, co.get('nose', '#c27a84'))
             if cute or self.eyes == 'happy':                      # joues roses
                 for sd_ in (-1, 1):
@@ -4486,8 +4924,9 @@ class Cat:
                 elif co['pat'] == 'calico':
                     c.create_polygon(self.ell3(surf(-0.8, -0.45), ((l_[0] * R * 0.42, 0, l_[2] * R * 0.42), (0, R * 0.34, 0), (f_[0] * 2, 0, f_[2] * 2)), 14, True), fill=co['p1'], outline='')
                 # yeux
-                er = (3.5 if ferret else (4.4 if dog else 4.7)) * (1.2 if cute else 1.0)
-                mode = self.eyes if self.blink <= 0 else 'closed'
+                er = (3.5 if ferret else (4.4 if dog else 4.7)) * (1.2 if cute else 1.0) * (1.0 + 0.3 * self.kid)
+                mode = self.expr if self.expr else (self.eyes if self.blink <= 0 else 'closed')
+                er0 = er
                 for sd_ in (-1, 1):
                     al = sd_ * (0.66 if goat else (0.52 if ferret else (0.5 if dog else 0.56)))
                     ve = vis(al, 0.1)
@@ -4495,9 +4934,16 @@ class Cat:
                         continue
                     ex, ey, _ = head_pt(surf(al, 0.1))
                     fxe = max(0.25, ve)
-                    if mode == 'closed':
+                    if mode in ('heart', 'dizzy'):                       # yeux en coeur / spirales
+                        txt, col = ('♥', '#ff4f86') if mode == 'heart' else ('@', '#3a2a44')
+                        sz = er0 * (2.7 + (0.5 * abs(math.sin(self.tp * 2)) if mode == 'heart' else 0.0)) * u
+                        c.create_text(ex, ey, text=txt, fill=col, font=('Segoe UI Symbol', -int(sz), 'bold'))
+                        continue
+                    me = 'happy' if (mode == 'wink' and sd_ == 1) else mode
+                    er = er0 * (1.3 if mode == 'wide' else (1.25 if (mode == 'derp' and sd_ == -1) else (0.85 if mode == 'derp' else 1.0)))
+                    if me == 'closed':
                         c.create_line(ex - er * 0.9 * fxe, ey, ex, ey + 1.4 * u, ex + er * 0.9 * fxe, ey, fill=ol, width=max(2, int(1.9 * u)), smooth=True, capstyle=tk.ROUND)
-                    elif mode == 'happy':
+                    elif me == 'happy':
                         c.create_arc(ex - er * 0.9 * fxe * u, ey - er * 0.2 * u, ex + er * 0.9 * fxe * u, ey + er * 1.7 * u, start=15, extent=150, style=tk.ARC, outline=ol, width=max(2, int(2.1 * u)))
                     else:
                         def el(cx, cy, a, b, n=16):
@@ -4505,17 +4951,29 @@ class Cat:
                         c.create_polygon(el(ex, ey, er * 0.98 * fxe * u, er * 1.18 * u), fill=ol, outline='')
                         c.create_polygon(el(ex, ey, er * 0.82 * fxe * u, er * 1.02 * u), fill=co['eye'] if not angry else '#f2c230', outline='')
                         gx, gy = self.look[0] * er * 0.4 * fxe * u, self.look[1] * er * 0.4 * u
+                        if mode == 'derp':                           # yeux qui louchent
+                            gx, gy = -sd_ * er * 0.55 * fxe * u, 0.0
+                        pk = 0.5 if mode in ('wide', 'derp') else 1.0
                         pw = 0.6 if mode == 'angry' else 0.95
                         if goat:                                         # pupille rectangulaire horizontale
                             c.create_polygon(ex + gx - er * 0.95 * fxe * u, ey + gy - er * 0.24 * u, ex + gx + er * 0.95 * fxe * u, ey + gy - er * 0.24 * u,
                                              ex + gx + er * 0.95 * fxe * u, ey + gy + er * 0.24 * u, ex + gx - er * 0.95 * fxe * u, ey + gy + er * 0.24 * u,
                                              fill='#0a0a0e', outline='')
                         else:
-                            c.create_polygon(el(ex + gx, ey + gy, pw * fxe * u, er * 0.9 * u), fill='#0a0a0e', outline='')
+                            c.create_polygon(el(ex + gx, ey + gy, pw * fxe * u * pk, er * 0.9 * u * pk), fill='#0a0a0e', outline='')
                         c.create_polygon(el(ex + gx - er * 0.32 * fxe * u, ey + gy - er * 0.45 * u, er * 0.34 * fxe * u, er * 0.34 * u, 10), fill='#ffffff', outline='')
                         c.create_polygon(el(ex + gx + er * 0.3 * fxe * u, ey + gy + er * 0.35 * u, er * 0.17 * fxe * u, er * 0.17 * u, 8), fill='#ffffff', outline='')
                         if mode == 'angry':
                             c.create_line(ex - sd_ * er * 1.2 * fxe * u, ey - er * 1.5 * u, ex + sd_ * er * 1.2 * fxe * u, ey - er * 0.35 * u, fill=ol, width=max(2, int(2.4 * u)), capstyle=tk.ROUND)
+                        elif mode == 'smug':                             # paupiere mi-close : l'air blase
+                            c.create_polygon(ex - er * 1.15 * fxe * u, ey - er * 1.4 * u, ex + er * 1.15 * fxe * u, ey - er * 1.4 * u,
+                                             ex + er * 1.15 * fxe * u, ey - er * 0.05 * u, ex - er * 1.15 * fxe * u, ey - er * 0.05 * u,
+                                             fill=base, outline=ol, width=max(1, int(1.2 * u)))
+                        elif mode == 'sad':                              # sourcils tristes et une larme
+                            c.create_line(ex - sd_ * er * 1.2 * fxe * u, ey - er * 1.3 * u, ex + sd_ * er * 1.2 * fxe * u, ey - er * 2.1 * u,
+                                          fill=ol, width=max(2, int(2.0 * u)), capstyle=tk.ROUND)
+                            ty_ = ey + er * 1.3 * u + ((self.tp * 0.6) % 1.0) * er * 1.8 * u
+                            c.create_oval(ex - 0.28 * er * u * fxe, ty_ - 0.45 * er * u, ex + 0.28 * er * u * fxe, ty_ + 0.45 * er * u, fill='#8ad0ff', outline='')
                 if goat:
                     goat_face(max(0.22, vf))
                 elif ferret:
@@ -4534,6 +4992,9 @@ class Cat:
                         c.create_line(nx0, ny0 + 0.9 * u, nx0, ny0 + 2.4 * u, fill=ol, width=max(1, int(1.1 * u)))
                         c.create_line(nx0 - 3.4 * fx * u, ny0 + 2.6 * u, nx0 - 1.7 * fx * u, ny0 + 3.9 * u, nx0, ny0 + 2.4 * u, nx0 + 1.7 * fx * u, ny0 + 3.9 * u, nx0 + 3.4 * fx * u, ny0 + 2.6 * u,
                                       fill=ol, width=max(1, int(1.1 * u)), smooth=True, capstyle=tk.ROUND)
+                    if self.blep > 0.3 and self.yawn <= 0.2:           # langue tiree
+                        c.create_polygon([v for q in range(12) for v in (nx0 + 1.0 * u + 1.7 * fx * u * math.cos(2 * PI * q / 12), ny0 + 4.6 * u + 2.0 * u * self.blep * math.sin(2 * PI * q / 12))],
+                                         fill='#ff7f96', outline=ol)
                     for sd_ in (-1, 1):                              # moustaches
                         al = sd_ * 0.78
                         if vis(al, 0.42) > 0.0:
@@ -5013,11 +5474,287 @@ class Buddy:
         self.vx = ct.dir * 560 * (u / 1.75)
 
 
+TRAITS = {'gourmand': 'Gourmand', 'joueur': 'Joueur', 'timide': 'Timide', 'calin': 'Calin', 'paresseux': 'Paresseux',
+          'curieux': 'Curieux', 'colerique': 'Colerique', 'aventurier': 'Aventurier', 'farceur': 'Farceur', 'propre': 'Propre', 'cochon': 'Cochon'}
+TRAIT_EXCLUS = (('propre', 'cochon'), ('joueur', 'paresseux'), ('timide', 'aventurier'), ('calin', 'colerique'))
+
+
+def random_traits(n=2):
+    """Deux traits de caractere au hasard (jamais deux traits qui se contredisent)."""
+    out = []
+    pool = list(TRAITS)
+    random.shuffle(pool)
+    for t in pool:
+        if len(out) >= n:
+            break
+        if any((t in p and (set(p) - {t}) & set(out)) for p in TRAIT_EXCLUS):
+            continue
+        out.append(t)
+    return out
+
+
+class Life:
+    """Vie de l'animal facon Tamagotchi : besoins, humeur, age, sante. Sauvegardee dans la config (il continue de vivre, doucement, hors-ligne)."""
+    EGG_TIME = 120.0            # secondes avant l'eclosion
+    HUNGER = 0.0001             # par seconde : le ventre se vide en pres de 3 heures
+    ENERGY_DOWN = 0.00015
+    ENERGY_UP = 0.002           # endormi, il recupere vite
+    CLEAN_DOWN = 0.00006
+    JOY_DOWN = 0.00018
+    GROWTH = {'bebe': 0.62, 'jeune': 0.8, 'adulte': 1.0, 'senior': 0.95}
+    NAMES = {'oeuf': 'Oeuf', 'bebe': 'Bebe', 'jeune': 'Jeune', 'adulte': 'Adulte', 'senior': 'Senior'}
+    KEYS = ('hunger', 'energy', 'joy', 'clean', 'health', 'born', 'last')
+
+    def __init__(self):
+        now = time.time()
+        self.born, self.last = now - 10 * 86400, now        # par defaut : un adulte en forme (utile pour les tests)
+        self.hunger, self.energy, self.joy, self.clean, self.health = 0.4, 0.9, 0.8, 0.9, 1.0
+        self.egg_t = None
+        self.sick = False
+        self.traits = []
+        self.name = ''
+        self.save_t = 0.0
+        self.need_t = 15.0
+        self.size_t = 0.0
+        self.stage_prev = None
+
+    @classmethod
+    def new_egg(cls):
+        L = cls()
+        L.egg_t = cls.EGG_TIME
+        L.born = L.last = time.time()
+        L.hunger, L.energy, L.joy, L.clean = 0.3, 1.0, 0.9, 1.0
+        L.traits = random_traits()
+        return L
+
+    @classmethod
+    def load(cls, d):
+        if not isinstance(d, dict):
+            return cls.new_egg()
+        L = cls()
+        ok = 0
+        for k in cls.KEYS:                                       # champ manquant ou abime : valeur par defaut, le reste est garde
+            try:
+                v = float(d[k])
+                if v != v:
+                    continue
+                setattr(L, k, clamp(v, 0.0, 1.0) if k not in ('born', 'last') else v)
+                ok += 1
+            except Exception:
+                pass
+        if ok == 0:
+            return cls.new_egg()
+        try:
+            e = d.get('egg_t')
+            L.egg_t = None if e is None else clamp(float(e), 0.0, cls.EGG_TIME)
+        except Exception:
+            L.egg_t = None
+        L.sick = bool(d.get('sick', False))
+        L.name = ' '.join(str(d.get('name') or '').split())[:18]
+        tr = d.get('traits')
+        L.traits = [t for t in tr if t in TRAITS] if isinstance(tr, list) else random_traits()   # ancienne sauvegarde : on lui en donne
+        if L.born > time.time():
+            L.born = time.time()
+        if L.last > time.time():
+            L.last = time.time()
+        el = clamp(time.time() - L.last, 0.0, 6 * 3600.0)       # temps passe programme ferme (plafonne, et adouci)
+        if L.egg_t is None and el > 30:
+            L.hunger = max(L.hunger, min(0.9, L.hunger + cls.HUNGER * el * 0.5))
+            L.energy = min(1.0, L.energy + 0.0004 * el)
+            L.clean = min(L.clean, max(0.25, L.clean - cls.CLEAN_DOWN * el * 0.4))
+            L.joy = min(L.joy, max(0.25, L.joy - 0.00008 * el))
+        L.last = time.time()
+        return L
+
+    def dump(self):
+        d = {k: round(float(getattr(self, k)), 4) for k in ('hunger', 'energy', 'joy', 'clean', 'health')}
+        d['born'] = self.born
+        d['last'] = time.time()
+        d['egg_t'] = self.egg_t
+        d['sick'] = self.sick
+        d['traits'] = list(self.traits)
+        d['name'] = self.name
+        d['v'] = 2
+        return d
+
+    def has(self, t):
+        return t in self.traits
+
+    def traits_txt(self):
+        return ', '.join(TRAITS[t] for t in self.traits) or 'Aucun'
+
+    def age_days(self):
+        return max(0.0, (time.time() - self.born) / 86400.0)
+
+    def stage(self):
+        if self.egg_t is not None:
+            return 'oeuf'
+        d = self.age_days()
+        return 'bebe' if d < 1 else 'jeune' if d < 3 else 'adulte' if d < 14 else 'senior'
+
+    def growth(self):
+        return self.GROWTH.get(self.stage(), 1.0)
+
+    def age_txt(self):
+        d = self.age_days()
+        return '%d h' % int(d * 24) if d < 1 else '%d j' % int(d)
+
+    def mood(self):
+        if self.sick:
+            return 'Malade'
+        if self.hunger > 0.8:
+            return 'Affame'
+        if self.energy < 0.2:
+            return 'Epuise'
+        if self.clean < 0.2:
+            return 'Sale'
+        if self.joy > 0.75:
+            return 'Heureux'
+        if self.joy > 0.45:
+            return 'Content'
+        return 'Triste' if self.joy > 0.25 else 'Deprime'
+
+
+VERSION = '1.1.0'
+GITHUB_REPO = 'ethilbalde/desktop-pet'
+
+
+def ver_tuple(v):
+    out = []
+    for p in str(v).lstrip('vV').split('.'):
+        try:
+            out.append(int(''.join(ch for ch in p if ch.isdigit()) or 0))
+        except Exception:
+            out.append(0)
+    return tuple(out)
+
+
+class Updater:
+    """Mise a jour depuis GitHub (clic sur « Mise a jour » dans Reglages) : cherche la derniere release,
+    telecharge le nouvel exe a cote de l'ancien, puis un petit script le remplace et relance le programme."""
+    API = 'https://api.github.com/repos/%s/releases/latest' % GITHUB_REPO
+    TRUSTED = 'https://github.com/%s/releases/' % GITHUB_REPO
+    MIN_SIZE = 1000000
+
+    def __init__(self):
+        self.msg = ''
+        self.busy = False
+        self.ready = None
+        self.frozen = bool(getattr(sys, 'frozen', False))
+        self.exe_path = sys.executable if self.frozen else ''
+
+    def start(self):
+        if self.busy:
+            return
+        import threading
+        self.busy = True
+        self.msg = 'Recherche...'
+        threading.Thread(target=self.run, daemon=True).start()
+
+    def run(self):
+        try:
+            import json
+            import urllib.request
+            hdr = {'User-Agent': 'desktop-pet-updater', 'Accept': 'application/vnd.github+json'}
+            with urllib.request.urlopen(urllib.request.Request(self.API, headers=hdr), timeout=12) as r:
+                data = json.loads(r.read().decode('utf-8'))
+            tag = str(data.get('tag_name', ''))
+            if ver_tuple(tag) <= ver_tuple(VERSION):
+                self.msg = 'Deja a jour (v%s)' % VERSION
+                return
+            if not self.frozen:
+                self.msg = 'v%s disponible (version sources : rien remplace)' % tag.lstrip('vV')
+                return
+            asset = next((a for a in data.get('assets', []) if str(a.get('name', '')).lower().endswith('.exe')), None)
+            url = str((asset or {}).get('browser_download_url', ''))
+            if not url.startswith(self.TRUSTED):
+                self.msg = 'Aucun exe dans la release %s' % tag
+                return
+            self.msg = 'Telechargement de v%s...' % tag.lstrip('vV')
+            dest = self.exe_path + '.new'
+            with urllib.request.urlopen(urllib.request.Request(url, headers=hdr), timeout=60) as r, open(dest, 'wb') as f:
+                shutil.copyfileobj(r, f)
+            if os.path.getsize(dest) < self.MIN_SIZE:
+                os.remove(dest)
+                self.msg = 'Telechargement incomplet'
+                return
+            self.msg = 'v%s prete : redemarrage...' % tag.lstrip('vV')
+            self.ready = dest
+        except Exception as e:
+            self.msg = 'Echec : %s' % str(e)[:40]
+            try:
+                if self.exe_path and not self.ready and os.path.exists(self.exe_path + '.new'):
+                    os.remove(self.exe_path + '.new')           # telechargement coupe : on ne garde pas un exe a moitie
+            except Exception:
+                pass
+        finally:
+            self.busy = False
+
+
+UPDATER = Updater()
+
+
+def relaunch_cmd(skip=('--monitor', '--animal', '--autre-ecran')):
+    """Ligne de commande pour relancer le programme (sans les options qui ecraseraient les reglages)."""
+    args, it = [], iter(sys.argv[1:])
+    for a in it:
+        if a == '--direct':
+            continue
+        if a in skip:
+            if a != '--autre-ecran':
+                next(it, None)
+            continue
+        args.append(a)
+    if getattr(sys, 'frozen', False):
+        base = [sys.executable]
+    else:
+        exe = sys.executable
+        if exe.lower().endswith('python.exe'):
+            exe = exe[:-len('python.exe')] + 'pythonw.exe'
+        base = [exe, os.path.abspath(sys.argv[0])]
+    return base + args
+
+
+def spawn_script(text, name='araignee_relance.bat'):
+    import subprocess
+    path = os.path.join(tempfile.gettempdir(), name)
+    with open(path, 'w', encoding='mbcs', errors='replace') as f:
+        f.write(text)
+    subprocess.Popen(['cmd', '/c', path], creationflags=0x08000000 | 0x00000008, close_fds=True)
+
+
+def restart_soon():
+    """Relance le programme apres quelques secondes (le temps que celui-ci se ferme)."""
+    cmd = ' '.join('"%s"' % c for c in relaunch_cmd() + ['--direct'])
+    spawn_script('@echo off\r\nping -n 3 127.0.0.1 >nul\r\nstart "" %s\r\ndel "%%~f0"\r\n' % cmd)
+
+
+def apply_update(new_exe, old_exe, args=()):
+    """Remplace l'exe (impossible tant qu'il tourne : on reessaie jusqu'a ce qu'il soit ferme) puis le relance."""
+    a = ' '.join('"%s"' % x for x in args)
+    spawn_script('@echo off\r\ncopy /y "%s" "%s.old" >nul 2>&1\r\nset n=0\r\n:w\r\nmove /y "%s" "%s" >nul 2>&1\r\nif errorlevel 1 (\r\n  set /a n+=1\r\n'
+                 '  if %%n%% gtr 60 exit /b 1\r\n  ping -n 2 127.0.0.1 >nul\r\n  goto w\r\n)\r\nstart "" "%s" %s\r\ndel "%%~f0"\r\n'
+                 % (old_exe, old_exe, new_exe, old_exe, old_exe, a), 'araignee_maj.bat')
+
+
+_MON_COUNT = [0.0, 1]
+
+
+def monitor_count():
+    if time.time() - _MON_COUNT[0] > 5:
+        _MON_COUNT[0] = time.time()
+        try:
+            _MON_COUNT[1] = max(1, len(list_monitors()))
+        except Exception:
+            _MON_COUNT[1] = 1
+    return _MON_COUNT[1]
+
+
 class CatPet:
     """Cerveau du chat : physique de plateformes (barre des tâches, fenêtres, panier), états, souris, menu."""
     UK = 1.45
     ANGRY_STATES = ('defend',)
-    LOOK_STATES = ('idle', 'loaf', 'groom', 'pet', 'held', 'stretch', 'eat', 'carry', 'greet', 'knead', 'box', 'dizzy', 'rim')
+    LOOK_STATES = ('idle', 'loaf', 'groom', 'pet', 'held', 'stretch', 'eat', 'carry', 'greet', 'knead', 'box', 'found', 'dizzy', 'rim')
     menu_geom = Pet.menu_geom
     over_menu = Pet.over_menu
     menu_row = Pet.menu_row
@@ -5025,8 +5762,22 @@ class CatPet:
     sound = Pet.sound
     set_windows = Pet.set_windows
     draw_menu = Pet.draw_menu
+    click_tab = Pet.click_tab
+    slider_start = Pet.slider_start
+    slider_track = Pet.slider_track
+    slider_set = Pet.slider_set
+    slider_tick = Pet.slider_tick
 
     def __init__(self, area, scale, getcursor, log=None, coat='tabby'):
+        self.life = Life()
+        self.name_asked = False
+        self.ask_name_cb = self.reset_cb = self.load_cb = None
+        self.layers, self.lay_used, self.sprite_solid = {}, set(), False
+        self.face, self.face_until, self.face_t = None, 0.0, random.uniform(12, 25)
+        self.found_ok = 0.0
+        self.growth = 1.0
+        self.auto_sleep_ok = 0.0
+        self.treat_ok = 0.0
         self.area = area
         self.s = scale
         self.u = scale * self.UK
@@ -5192,7 +5943,7 @@ class CatPet:
 
     def view_for_state(self):
         st = self.state
-        if st in ('pet', 'held', 'defend', 'eat', 'greet', 'dizzy', 'box', 'rim'):
+        if st in ('pet', 'held', 'defend', 'eat', 'greet', 'dizzy', 'box', 'found', 'rim'):
             return 'front'
         if st == 'idle':
             return self.idle_view
@@ -5337,6 +6088,8 @@ class CatPet:
         return False
 
     def physics(self, dt):
+        if self.life.sick and self.cat.pkey is not None:
+            self.vx *= 0.55                                      # malade : il se traine
         if self.phys_actor(self.cat, self, dt):
             self.on_land()
 
@@ -5373,6 +6126,8 @@ class CatPet:
     # ------------------------------------------------------------------ boucle
     def update(self, dt):
         s, u, ct = self.s, self.u, self.cat
+        if self.life.egg_t is not None:
+            return self.update_egg(dt)
         self.now += dt
         self.state_t += dt
         self.pcur = self.cur
@@ -5381,13 +6136,14 @@ class CatPet:
         self.cur = (clamp(cx_, l_, r_), clamp(cy_, t_, b_))
         inst = math.hypot(self.cur[0] - self.pcur[0], self.cur[1] - self.pcur[1]) / max(dt, 1e-3)
         self.cspeed += (inst - self.cspeed) * min(1.0, dt * 8)
-        self.hunger = min(1.0, self.hunger + dt * 0.004)
+        self.hunger = min(1.0, self.hunger + dt / getattr(self, 'SPEED', 1.0) * self.life.HUNGER * (1.35 if self.life.has('gourmand') else 1.0))
         self.still_t = self.still_t + dt if self.cspeed < 5 else 0.0
         ct.look = self.cursor_look()
         ct.cur_rel = self.cur[0] - ct.x
         ct.view = self.view_for_state()
         ct.hlook = self.state in self.LOOK_STATES and ct.view != 'back'
         self.build_platforms()
+        self.life_tick(dt)
 
         vx_, vy_ = self.cur[0] - self.pcur[0], self.cur[1] - self.pcur[1]
         vl_ = math.hypot(vx_, vy_)
@@ -5422,10 +6178,15 @@ class CatPet:
             consumed = True
             idx = self.menu_row()
             items = self.menu_items()
-            self.menu_open = False
+            if idx is not None and str(items[idx][1]).startswith('slider:'):
+                self.slider_start(items[idx][1][7:])            # curseur : on le fait glisser, le menu reste ouvert
+                idx = None
+            else:
+                self.menu_open = False
             if idx is not None and items[idx][1]:
                 self.sound('tap')
                 self.menu_action(items[idx][1])
+        self.slider_tick(btn)
         if pressed2:
             if self.hover_bk:
                 self.open_menu('basket')
@@ -5447,7 +6208,10 @@ class CatPet:
         if (len(self.wiggle) >= 4 and self.state in ('idle', 'walk', 'loaf') and not hover
                 and self.now >= self.chase_ok and not self.paused and self.can_chase()):
             self.set_state('chase')
-        if pressed and not consumed and hover and self.state != 'held':
+        if pressed and not consumed and hover and self.state != 'held' and not self.life.name and not self.name_asked and self.ask_name_cb:
+            self.name_asked = True                               # il vient d'eclore (ou n'a pas de nom) : on lui en donne un
+            self.ask_name_cb()
+        elif pressed and not consumed and hover and self.state != 'held':
             if self.now - self.click_t < 0.5:
                 self.start_flip()
             else:
@@ -5491,6 +6255,7 @@ class CatPet:
             return
 
         getattr(self, 'st_' + self.state)(dt)
+        self.face_update(dt)
         if self.state not in ('held', 'climb', 'rim'):
             self.physics(dt)
         grounded = self.grounded()
@@ -5505,6 +6270,10 @@ class CatPet:
             h[1] -= 45 * s * dt
             h[2] += dt
         self.hearts = [h for h in self.hearts if h[2] < 1.6]
+        for w in self.words:
+            w[3] += dt
+            w[2] -= 16 * s * dt
+        self.words = [w for w in self.words if w[3] < 1.3]
         for z in self.zzz:
             z[1] -= 22 * s * dt
             z[0] += 8 * s * dt
@@ -5661,7 +6430,7 @@ class CatPet:
         if abs(self.cur[0] - ct.x) > 30 * self.u and self.cspeed < 900:
             ct.dir = 1 if self.cur[0] > ct.x else -1                 # se tourne vers le curseur
         if self.state_t > self.idle_for:
-            self.decide()
+            self.decide_trait()
         self.check_defend()
 
     def check_defend(self):
@@ -5890,6 +6659,9 @@ class CatPet:
             elif o.kind == 'bowl' and o.state == 'live':                 # la gamelle se prend et se deplace aussi
                 if abs(x - o.x) < 24 * self.u and -4 * self.u < (o.y - y) < 18 * self.u:
                     return o
+            elif o.kind == 'box' and o.state == 'live':                  # la boite en carton aussi
+                if abs(x - o.x) < 27 * self.u and -4 * self.u < (o.y - y) < 27 * self.u:
+                    return o
         return None
 
     def update_hand_toy(self, btn):
@@ -5915,7 +6687,7 @@ class CatPet:
             else:
                 o.state = 'live'
                 h = self.hand_hist
-                if o.kind != 'bowl' and len(h) >= 2 and h[-1][0] - h[0][0] > 0.02:     # lancer : la pelote part a la vitesse de la main
+                if o.kind not in ('bowl', 'box') and len(h) >= 2 and h[-1][0] - h[0][0] > 0.02:     # lancer : la pelote part a la vitesse de la main
                     dtw = h[-1][0] - h[0][0]
                     o.vx = clamp((h[-1][1] - h[0][1]) / dtw, -1300, 1300)
                     o.vy = clamp((h[-1][2] - h[0][2]) / dtw, -1300, 700)
@@ -6416,7 +7188,6 @@ class CatPet:
             ct.y -= self.climb_v * dt
             if ct.plant_n != getattr(self, 'prev_plant', 0):       # les griffes s'agrippent : eclats d'ecorce
                 self.chips(2)
-                self.sound('tap')
             self.prev_plant = ct.plant_n
             if ct.y <= wt + 40 * u:
                 self.sub, self.sub_t = 'c', self.now
@@ -6767,6 +7538,8 @@ class CatPet:
         d = o.x - ct.x
         ct.set_pose('stand')
         ct.dir = 1 if d >= 0 else -1
+        if o.state != 'live':
+            return self.go_idle(0.5)
         self.vx = ct.dir * 150 * (u / 1.75) if abs(d) > 5 * u else 0.0
         if abs(d) <= 5 * u or self.edge or self.state_t > 12:
             self.vx = 0.0
@@ -6777,7 +7550,7 @@ class CatPet:
         o = self.box_obj
         t = self.state_t
         self.vx = 0.0
-        if o is None:
+        if o is None or o.state != 'live':                        # on lui deplace la boite : il en sort
             ct.yoff = 0.0
             return self.go_idle(0.5)
         ct.x = o.x
@@ -6802,6 +7575,8 @@ class CatPet:
                     self.hunt_ok = 0.0
                     if self.start_hunt():
                         return
+        if self.now > self.found_ok and self.cspeed < 500 and (self.over_cat() or self.hover_toy is o):
+            return self.set_state('found')                         # on l'a decouvert !
         if t > 16 or (self.over_cat() and self.cspeed > 600):
             ct.yoff = 0.0
             self.go_idle(random.uniform(1.5, 3), 'sit')
@@ -6994,20 +7769,66 @@ class CatPet:
             ('Volume -', 'vol-'),
             ('Reprendre' if self.paused else 'Pause', 'pause'),
             ('Quitter', 'quit'),
-        ])
+        ], self)
 
     def menu_action(self, act):
-        if act == 'race':
+        if act == 'tabclick':
+            self.click_tab()
+        elif act == 'bug':
+            if getattr(self, 'bug_cb', None):
+                self.bug_cb()
+        elif act == 'monitor':
+            n = monitor_count()
+            if n > 1 and self.cfg_save:
+                if hasattr(self, 'life_save'):
+                    self.life_save()
+                self.cfg_save({'monitor': MON.get('index', 1) % n + 1})
+                restart_soon()
+                if self.quit_cb:
+                    self.quit_cb()
+        elif act == 'quality':
+            self.aa_on = not self.aa_on
+            if self.cfg_save:
+                self.cfg_save({'aa': self.aa_on})
+            self.menu_page, self.menu_open = 'settings', True
+        elif act == 'update':
+            UPDATER.start()
+            self.menu_page, self.menu_open = 'settings', True
+        elif act == 'race':
             self.menu_page = 'race'
             self.menu_open = True
-        elif act in ('actions', 'out'):
+        elif act in ('actions', 'out', 'state'):
             self.menu_page = act
             self.menu_open = True
+        elif act == 'rename':
+            if self.ask_name_cb:
+                self.ask_name_cb()
+        elif act == 'reset':
+            if self.reset_cb:
+                self.reset_cb()
+        elif act == 'load':
+            if self.load_cb:
+                self.load_cb()
+        elif act == 'launcher':
+            PREFS['launcher'] = not PREFS.get('launcher', True)
+            if self.cfg_save:
+                self.cfg_save({'show_launcher': PREFS['launcher']})
+            self.menu_page, self.menu_open = 'settings', True
+        elif act == 'bath':
+            if not self.start_bath():
+                self.say('Pas ici...')
+            self.menu_page, self.menu_open = 'state', True
+        elif act == 'heal':
+            self.start_heal()
+            self.menu_page, self.menu_open = 'state', True
+        elif act == 'treat':
+            self.give_treat()
+            self.menu_page, self.menu_open = 'state', True
         elif act == 'coat':
             self.menu_page = 'coat'
             self.menu_open = True
         elif act == 'back':
-            self.menu_page = 'main'
+            self.menu_page = 'animal' if self.menu_page in ('race', 'coat') else 'main'
             self.menu_open = True
         elif act.startswith('race:'):
             self.menu_page = 'main'
@@ -7063,14 +7884,385 @@ class CatPet:
         elif act == 'pause':
             self.paused = not self.paused
         elif act == 'quit':
+            self.life_save()
             if self.quit_cb:
                 self.quit_cb()
         self.save_config()
 
+    # ------------------------------------------------------------------ vie de l'animal (facon Tamagotchi)
+    @property
+    def hunger(self):
+        return self._hunger
+
+    @hunger.setter
+    def hunger(self, v):
+        old = getattr(self, '_hunger', v)
+        self._hunger = v
+        if v < old - 0.001:                                      # il vient de manger : ca rend heureux
+            self.life.joy = min(1.0, self.life.joy + (old - v) * 0.3)
+
+    FUNNY = (('derp', 'Hein ?'), ('wink', 'Wink !'), ('smug', 'Hmm...'), ('blep', 'Blep !'), ('wide', 'Oh !'))
+
+    def set_face(self, name, secs):
+        self.face, self.face_until = name, self.now + secs
+
+    def face_update(self, dt):
+        """Expressions rigolotes : yeux en coeur quand on le caresse, surpris quand on l'attrape, grimaces au hasard, triste s'il va mal."""
+        ct, st, L = self.cat, self.state, self.life
+        if st in ('sleep', 'eat', 'feed', 'bath', 'heal', 'box') or (st == 'idle' and self.paused):
+            ct.expr = None
+            ct.blep += (0.0 - ct.blep) * min(1.0, dt * 10)
+            return
+        if st == 'pet':
+            self.set_face('heart', 0.4)
+        elif st == 'held':
+            self.set_face('wide', 0.3)
+        elif st == 'dizzy':
+            self.set_face('dizzy', 0.3)
+        self.face_t -= dt
+        if self.face_t <= 0:
+            self.face_t = random.uniform(10, 25) if L.has('farceur') else random.uniform(20, 45)
+            if st in ('idle', 'loaf', 'walk', 'follow', 'stretch'):
+                f, w = random.choice(self.FUNNY)
+                self.set_face(f, 2.4)
+                self.say(w)
+        face = self.face if self.now < self.face_until else None
+        if face is None and st in ('idle', 'loaf', 'walk') and (L.joy < 0.3 or self.hunger > 0.85 or L.sick):
+            face = 'sad'
+        ct.expr = None if face == 'blep' else face
+        ct.blep += ((1.0 if face in ('derp', 'wink', 'blep') else 0.0) - ct.blep) * min(1.0, dt * 10)
+        if face == 'wide':
+            ct.yawn = max(ct.yawn, 0.75)
+
+    def st_found(self, dt):
+        """Tu decouvres l'animal cache dans sa boite : il se fige, surgit d'un coup, puis se rendort comme si de rien n'etait."""
+        ct, u = self.cat, self.u
+        o = self.box_obj
+        t = self.state_t
+        self.vx = 0.0
+        if o is None or o.state != 'live':
+            ct.yoff = 0.0
+            return self.go_idle(0.5)
+        ct.x = o.x
+        ct.expr = 'wide'
+        if t < 0.4:                                              # il se fige, tout petit dans la boite
+            ct.yoff = 3.0
+            ct.set_pose('loaf', 14)
+        elif t < 0.7:                                            # POP !
+            ct.yoff = 3.0 - 33.0 * clamp((t - 0.4) / 0.3, 0.0, 1.0)
+            ct.set_pose('sit', 26)
+            if self.sub == 'a':
+                self.sub = 'b'
+                self.say('Surprise !')
+                self.sound('meow')
+                ct.squash = 0.4
+                for _ in range(8):
+                    self.sparks.append([ct.x + random.uniform(-25, 25) * u, ct.y - random.uniform(25, 50) * u,
+                                        random.uniform(-50, 50), -random.uniform(20, 70), 0.0, 'star'])
+        elif t < 2.4:                                            # il reste debout, tout gene
+            ct.yoff = -30.0 + 1.2 * math.sin(t * 16)
+            ct.set_pose('sit', 10)
+            ct.wag = 0.8
+            if t > 1.3:
+                ct.expr = 'smug'
+        else:                                                    # il se recache
+            ct.yoff = -6.0
+            self.found_ok = self.now + 10
+            self.set_state('box')
+
+    aa_on = True
+
+    def draw_cat(self, c, ct, angry, clip=None, key='cat'):
+        """Dessine un animal : lisse (Pillow x3) dans une fenetre a transparence par pixel, sinon directement sur le canvas."""
+        if _PI is not None and self.aa_on:
+            l, t, r, b = ct.box()
+            mx, my = 30 * self.u, 34 * self.u
+            x0, y0 = int(l - mx), int(t - my)
+            w, h = int(r - l + 2 * mx), int(b - t + 2 * my + 6 * self.u)
+            w, h = min(max(32, (w + 31) // 32 * 32), 1100), min(max(32, (h + 31) // 32 * 32), 900)
+            aa = AACanvas(None, x0, y0, w, h)
+            ct.draw(ClipCanvas(aa, clip) if clip is not None else aa, angry)
+            layer = self.layers.setdefault(key, SpriteLayer())
+            if layer.show(aa.render(), MON['ox'] + x0, MON['oy'] + y0, self.sprite_solid):
+                self.lay_used.add(key)
+                return
+            self.aa_on = False                                 # pas de fenetre a transparence : on repasse en dessin direct
+        ct.draw(ClipCanvas(c, clip) if clip is not None else c, angry)
+
+    def end_layers(self):
+        for k, lay in self.layers.items():
+            if k not in self.lay_used:
+                lay.hide()
+        self.lay_used = set()
+
+    def hide_layers(self):
+        for lay in self.layers.values():
+            lay.hide()
+
+    def solid_layers(self, solid):
+        self.sprite_solid = solid
+        for lay in self.layers.values():
+            if lay.vis:
+                lay.set_solid(solid)
+
+    def close_layers(self):
+        for lay in self.layers.values():
+            lay.close()
+
+    def decide_trait(self):
+        """Son caractere (tire a la naissance) oriente ses envies, puis on retombe sur le choix habituel de l'espece."""
+        L = self.life
+        r = random.random()
+        has = L.has
+        if has('joueur') and r < 0.08:
+            return self.start_zoom()
+        if has('aventurier') and r < 0.10:
+            if self.start_climb():
+                return
+            return self.start_jump_random(prefer_win=True)
+        if has('timide') and r < 0.10 and self.start_rim():
+            return
+        if has('paresseux') and r < 0.14:
+            return self.start_sleep()
+        if has('curieux') and r < 0.10:
+            if hasattr(self, 'start_sniff') and self.start_sniff():
+                return
+            if hasattr(self, 'start_follow') and self.start_follow():
+                return
+        if has('calin') and r < 0.10 and self.cspeed < 150 and abs(self.cur[0] - self.cat.x) < 800 * (self.u / 1.75):
+            return self.set_state('greet')
+        if has('colerique') and r < 0.06:
+            return self.set_state('defend')
+        self.decide()
+
+    BUSY_STATES = ('zoom', 'frenzy', 'fchase', 'dance', 'chase', 'climb', 'climb_go', 'jump', 'bat', 'tailchase')
+    PLAY_STATES = ('bat', 'chase', 'stalk', 'zoom', 'fetch', 'tailchase', 'dance', 'frenzy', 'fchase', 'carry')
+
+    def say(self, text):
+        ct, u = self.cat, self.u
+        hx, hy = ct.T(ct.P['hdx'], ct.P['hdy'])
+        self.words.append([text, hx + ct.dir * 34 * u, hy - 16 * u, 0.0])
+
+    def life_save(self):
+        if self.cfg_save:
+            self.life.hunger = self.hunger
+            try:
+                self.cfg_save({'life': self.life.dump(), 'life_kind': self.animal, 'life_coat': self.cat.coat})
+            except Exception:
+                pass
+
+    def apply_growth(self):
+        self.cat.kid = {'bebe': 1.0, 'jeune': 0.45}.get(self.life.stage(), 0.0)
+        g = self.life.growth()
+        if abs(g - self.growth) > 1e-3:
+            self.growth = g
+            self.set_scale(self.s)
+
+    def life_tick(self, dt):
+        dt /= getattr(self, 'SPEED', 1.0)                         # le furet va vite, mais ne vit pas plus vite
+        L, st = self.life, self.state
+        L.hunger = self.hunger
+        if st == 'sleep':
+            L.energy = min(1.0, L.energy + L.ENERGY_UP * dt)
+            if L.energy < 0.9:
+                self.state_t = min(self.state_t, 100.0)          # il dort tant qu'il n'a pas recupere
+        else:
+            L.energy = max(0.0, L.energy - L.ENERGY_DOWN * (3.0 if st in self.BUSY_STATES else 1.0) * (1.35 if L.has('paresseux') else 1.0) * dt)
+        L.clean = max(0.0, L.clean - L.CLEAN_DOWN * (3.0 if st == 'dig' else 1.0) * (1.6 if L.has('cochon') else (0.6 if L.has('propre') else 1.0)) * dt)
+        n_low = (self.hunger > 0.8) + (L.energy < 0.2) + (L.clean < 0.2)
+        L.joy -= (L.JOY_DOWN * (1.4 if L.has('calin') else 1.0) + 0.0004 * n_low) * dt
+        if st in self.PLAY_STATES:
+            L.joy += 0.006 * (2.0 if L.has('joueur') else 1.0) * dt
+        elif st == 'pet':
+            L.joy += 0.03 * (2.0 if L.has('calin') else 1.0) * dt
+        L.joy = clamp(L.joy, 0.0, 1.0)
+        bad = self.hunger > 0.92 or L.clean < 0.08 or L.energy < 0.04
+        L.health = clamp(L.health + (-0.00012 if bad else (0.0001 if n_low == 0 else 0.0)) * dt, 0.0, 1.0)
+        if L.health < 0.3 and not L.sick:
+            L.sick = True
+            self.say('Aie...')
+        elif L.health > 0.6 and L.sick:
+            L.sick = False
+        L.size_t -= dt
+        if L.size_t <= 0:                                        # grandit avec l'age
+            L.size_t = 3.0
+            stg = L.stage()
+            if L.stage_prev is not None and stg != L.stage_prev:
+                for _ in range(8):
+                    self.sparks.append([self.cat.x + random.uniform(-20, 20) * self.u, self.cat.y - random.uniform(5, 50) * self.u,
+                                        random.uniform(-40, 40), -random.uniform(20, 60), 0.0, 'star'])
+                self.sound('ding')
+                self.say('J ai grandi !')
+            L.stage_prev = stg
+            self.apply_growth()
+        L.need_t -= dt                                           # il dit ce dont il a besoin
+        if L.need_t <= 0 and st not in ('sleep', 'held', 'rim', 'bath', 'heal'):
+            L.need_t = random.uniform(60, 110)
+            if L.sick:
+                self.say('Je suis malade...')
+            elif self.hunger > (0.55 if L.has('gourmand') else 0.7):
+                self.say('Faim !')
+            elif L.energy < 0.25:
+                self.say('Fatigue...')
+            elif L.clean < 0.25:
+                self.say('Sale...')
+            elif L.joy < 0.3:
+                self.say('Un calin ?')
+        if (L.energy < 0.12 and st in ('idle', 'walk', 'loaf', 'groom', 'stretch') and self.now > self.auto_sleep_ok
+                and self.cur_plat() is not None):
+            self.auto_sleep_ok = self.now + 120
+            self.say('Zzz...')
+            self.start_sleep()
+        L.save_t += dt
+        if L.save_t > 20:
+            L.save_t = 0.0
+            self.life_save()
+
+    def update_egg(self, dt):
+        L, ct, u = self.life, self.cat, self.u
+        self.now += dt
+        cx_, cy_ = self.getcur()
+        l_, t_, r_, b_ = self.area
+        self.cur = (clamp(cx_, l_, r_), clamp(cy_, t_, b_))
+        btn = bool(self.getbtn())
+        pressed = btn and not self.btn_prev
+        self.btn_prev = btn
+        hit = abs(self.cur[0] - ct.x) < 17 * u and ct.y - 40 * u < self.cur[1] < ct.y + 4 * u
+        self.interactive = hit
+        if pressed and hit:
+            L.egg_t -= 4.0                                       # un petit coup l'aide a eclore
+            ct.squash = 0.3
+            self.sound('tap')
+        L.egg_t -= dt
+        ct.update(dt, 0.0, True)
+        if L.egg_t <= 0:
+            L.egg_t = None
+            L.born = time.time()
+            L.stage_prev = 'bebe'
+            for _ in range(12):
+                self.sparks.append([ct.x + random.uniform(-14, 14) * u, ct.y - random.uniform(5, 35) * u,
+                                    random.uniform(-60, 60), -random.uniform(20, 80), 0.0, 'star'])
+            self.hearts.append([ct.x, ct.y - 50 * u, 0.0])
+            self.sound('ding')
+            ct.squash = 0.7
+            self.state, self.state_t = 'idle', 0.0
+            self.apply_growth()
+            self.say('Clique sur moi pour me donner un nom !' if not L.name else 'Coucou !')
+            self.name_asked = False
+            self.life_save()
+
+    def draw_egg(self, c):
+        ct, u, L = self.cat, self.u, self.life
+        co = DOG_COATS.get(ct.coat) or GOAT_COATS.get(ct.coat) or FERRET_COATS.get(ct.coat) or COATS.get(ct.coat) or {}
+        spot = co.get('dark', '#b98a5a')
+        prog = clamp(1.0 - L.egg_t / L.EGG_TIME, 0.0, 1.0)
+        w = math.sin(self.now * (4 + 12 * prog)) * (0.03 + 0.17 * prog) * (1.0 if int(self.now * 0.8) % 2 == 0 or prog > 0.7 else 0.0)
+        cw, sw = math.cos(w), math.sin(w)
+        rx, ry = 13 * u, 18 * u
+
+        def tr(x, y):                                            # (x, y) relatifs au bas de l'oeuf, pivot au sol
+            return ct.x + x * cw - y * sw, ct.y + x * sw + y * cw
+        c.create_oval(ct.x - 11 * u, ct.y - 2 * u, ct.x + 11 * u, ct.y + 2 * u, fill='#6a6a78', outline='')
+        pts = []
+        for q in range(28):
+            th = 2 * PI * q / 28
+            pts += list(tr(rx * math.sin(th) * (1 - 0.10 * math.cos(th)), -ry * math.cos(th) - ry))
+        c.create_polygon(pts, fill='#f6efe0', outline='#5a4a3a', width=max(2, int(1.4 * u)))
+        for sx_, sy_, sr in ((-4, -20, 2.6), (3, -12, 2.0), (-2, -8, 1.6), (5, -22, 1.8), (-6, -14, 1.4)):
+            px, py = tr(sx_ * u, sy_ * u)
+            c.create_oval(px - sr * u, py - sr * u, px + sr * u, py + sr * u, fill=spot, outline='')
+        if prog > 0.45:                                          # fissures
+            zz = [tr(-9 * u, -16 * u), tr(-5 * u, -19 * u), tr(-2 * u, -15 * u), tr(2 * u, -19 * u), tr(5 * u, -15 * u), tr(9 * u, -18 * u)]
+            c.create_line([v for p in zz for v in p], fill='#5a4a3a', width=max(1, int(1.4 * u)))
+        if self.interactive:
+            c.create_text(ct.x, ct.y - 36 * u, text='clique pour l aider', fill='#ffffff', font=('Segoe UI', -int(11 * self.s), 'bold'))
+
+    def mood_bar(self, v):
+        n = int(round(clamp(v, 0.0, 1.0) * 8))
+        return '█' * n + '░' * (8 - n)
+
+    def state_rows(self):
+        L = self.life
+        return [(('Nom : ' + L.name + '   (changer >)') if L.name else 'Lui donner un nom   >', 'rename'),
+                ('Humeur : ' + L.mood(), None),
+                ('Age : %s  (%s)' % (L.age_txt(), L.NAMES.get(L.stage(), '')), None),
+                ('Caractere : ' + L.traits_txt(), None),
+                ('G:Satiete:%.3f:0' % (1.0 - self.hunger), None),
+                ('G:Energie:%.3f:0' % L.energy, None),
+                ('G:Bonheur:%.3f:0' % L.joy, None),
+                ('G:Sante:%.3f:0' % L.health, None),
+                ('G:Salete:%.3f:1' % (1.0 - L.clean), None),
+                ('Donner a manger (gamelle)', 'feed'),
+                ('Friandise', 'treat'),
+                ('Laver', 'bath'),
+                ('Soigner', 'heal')]
+
+    def start_bath(self):
+        if self.cat.pkey is None or self.cur_plat() is None:
+            return False
+        self.set_state('bath')
+        return True
+
+    def st_bath(self, dt):
+        ct, u = self.cat, self.u
+        t = self.state_t
+        self.vx = 0.0
+        ct.set_pose('stand', 8)
+        ct.eyes = 'happy'
+        ct.wag = 1.0
+        ct.squash = 0.1 * abs(math.sin(t * 18))
+        self.life.clean = min(1.0, self.life.clean + dt * 0.28)
+        if int(t * 9) != int((t - dt) * 9):
+            self.sparks.append([ct.x + random.uniform(-22, 22) * u, ct.y - random.uniform(5, 40) * u,
+                                random.uniform(-10, 10), -random.uniform(25, 60), 0.0, 'bubble'])
+        if t > 3.8:
+            self.life.clean = 1.0
+            self.life.health = min(1.0, self.life.health + 0.03)
+            self.say('Tout propre !')
+            self.sound('ding')
+            self.go_idle(random.uniform(1.5, 3), 'stand')
+
+    def start_heal(self):
+        L = self.life
+        if L.health > 0.92 and not L.sick:
+            self.say('Je vais bien !')
+            return False
+        if self.cat.pkey is None or self.cur_plat() is None:
+            return False
+        self.set_state('heal')
+        return True
+
+    def st_heal(self, dt):
+        ct, u = self.cat, self.u
+        t = self.state_t
+        self.vx = 0.0
+        ct.set_pose('sit', 8)
+        ct.eyes = 'closed'
+        self.life.health = min(1.0, self.life.health + dt * 0.3)
+        if int(t * 4) != int((t - dt) * 4):
+            self.sparks.append([ct.x + random.uniform(-14, 14) * u, ct.y - random.uniform(30, 55) * u,
+                                random.uniform(-10, 10), -random.uniform(15, 40), 0.0, 'star'])
+        if t > 2.6:
+            self.life.health = min(1.0, self.life.health + 0.25)
+            self.hearts.append([ct.x, ct.y - 70 * u, 0.0])
+            self.say('Merci !')
+            self.go_idle(random.uniform(1.5, 3), 'sit')
+
+    def give_treat(self):
+        if self.now < self.treat_ok:
+            self.say('Plus de friandise...')
+            return
+        self.treat_ok = self.now + 45
+        self.hunger = max(0.0, self.hunger - 0.12)
+        self.life.joy = min(1.0, self.life.joy + 0.15)
+        self.hearts.append([self.cat.x, self.cat.y - 70 * self.u, 0.0])
+        self.sound('crunch')
+        self.say('Miam !')
+
     def set_scale(self, new):
         new = clamp(new, 0.8, 3.2)
         self.s = new
-        self.u = new * self.UK
+        self.u = new * self.UK * self.growth
         self.cat.u = self.u
         self.g = 1400 * self.u
         self.bk.s = new * 0.62
@@ -7104,7 +8296,7 @@ class CatPet:
             if o.state == 'carried':
                 continue
             if o.kind == 'box':
-                if self.state == 'box' and o is self.box_obj:
+                if self.state in ('box', 'found') and o is self.box_obj:
                     continue
                 draw_box_back(c, o.x, o.y, u)
                 draw_box_front(c, o.x, o.y, u)
@@ -7116,17 +8308,24 @@ class CatPet:
             else:
                 draw_yarn(c, o.x, o.y, u, o.rot)
         if self.buddy is not None:
-            self.buddy.cat.draw(c, False)
+            self.draw_cat(c, self.buddy.cat, False, key='buddy')
         angry = self.state in self.ANGRY_STATES
-        in_box = self.state == 'box' and self.box_obj is not None
+        in_box = self.state in ('box', 'found') and self.box_obj is not None
         if in_box:
             draw_box_back(c, self.box_obj.x, self.box_obj.y, u)
         if self.state == 'rim' and self.rim and self.rim['hw'] in self.win_by:
-            ct.draw(ClipCanvas(c, self.win_by[self.rim['hw']][1]), angry)
+            self.draw_cat(c, ct, angry, clip=self.win_by[self.rim['hw']][1])
+        elif self.life.egg_t is not None:
+            self.draw_egg(c)
         else:
-            ct.draw(c, angry)
+            self.draw_cat(c, ct, angry)
         if in_box:
             draw_box_front(c, self.box_obj.x, self.box_obj.y, u)
+        if self.life.egg_t is None and self.life.clean < 0.3:             # tres sale : des mouches tournent autour de lui
+            for q_ in range(3):
+                ang_ = self.now * 4 + q_ * 2.1
+                fx_, fy_ = ct.x + math.cos(ang_) * 16 * u, ct.y - 66 * u + math.sin(ang_ * 1.3) * 6 * u
+                c.create_oval(fx_ - 1.5 * u, fy_ - 1.2 * u, fx_ + 1.5 * u, fy_ + 1.2 * u, fill='#2a2a2a', outline='')
         if self.state == 'sleep' and self.state_t > 6:                 # bulle de rêve : une souris, puis un poisson
             hx, hy = ct.T(ct.P['hdx'], ct.P['hdy'])
             bx, by = hx + ct.dir * 30 * u, hy - 34 * u
@@ -7166,6 +8365,9 @@ class CatPet:
             if sk[4] >= 0 and sk[5] == 'chip':
                 r_ = 1.5 * self.u
                 c.create_oval(sk[0] - r_, sk[1] - r_, sk[0] + r_, sk[1] + r_ * 0.7, fill='#8a6a4a', outline='')
+            elif sk[4] >= 0 and sk[5] == 'bubble':
+                r_ = (2.5 + 3 * sk[4]) * self.u
+                c.create_oval(sk[0] - r_, sk[1] - r_, sk[0] + r_, sk[1] + r_, fill='#d8f0ff', outline='#7ab8e8', width=2)
             elif sk[4] >= 0:
                 c.create_text(sk[0], sk[1], text='✦', fill='#ffe066',
                               font=('Segoe UI Symbol', -int(18 * self.s * (1.2 - sk[4] * 0.5)), 'bold'))
@@ -7176,6 +8378,7 @@ class CatPet:
         if self.paused:
             c.create_text(ct.x + 1, ct.y - 80 * self.u + 1, text='Pause', fill='#000000', font=('Segoe UI', -int(14 * self.s), 'bold'))
             c.create_text(ct.x, ct.y - 80 * self.u, text='Pause', fill='#ffffff', font=('Segoe UI', -int(14 * self.s), 'bold'))
+        self.end_layers()
         self.draw_menu(c)
 
 
@@ -7183,6 +8386,8 @@ class CatPet:
 ACTION_ACTS = {'sleep', 'groom', 'stretch', 'zoom', 'climb', 'scratch', 'rim', 'bark', 'beg', 'dig', 'sniff', 'butt',
                'frenzy', 'mad', 'fchase', 'dance', 'show', 'dangle', 'hide', 'wash'}
 OUT_ACTS = {'box', 'ball'}
+ANIMAL_ACTS = {'race', 'coat', 'cute', 'buddy', 'ambient', 'species', 'comp', 'dew', 'reset', 'load'}
+SETTING_ACTS = {'size+', 'size-', 'sound', 'vol+', 'vol-', 'pause', 'quit', 'monitor', 'update', 'quality', 'launcher'}
 OUT_ITEMS = {
     'spider': [('Une mouche', 'prey:fly'), ('Un moustique', 'prey:mosquito'), ('Un papillon', 'prey:butterfly')],
     'cat': [('Une mouche', 'prey:fly'), ('Un papillon', 'prey:butterfly'), ('Une souris', 'prey:mouse'), ('Une pelote', 'prey:yarn')],
@@ -7190,22 +8395,50 @@ OUT_ITEMS = {
 OUT_DEFAULT = [('Une mouche', 'prey:fly'), ('Un papillon', 'prey:butterfly'), ('Une souris', 'prey:mouse')]
 
 
-def paged_menu(page, animal, rows):
-    """Menu en onglets : page principale courte ; onglet Actions (dormir, grimper...) et onglet Sortir (proies, jouets).
-    « Donner a manger » reste toujours sur la page principale."""
-    if page == 'actions':
-        return [('Actions', None)] + [r for r in rows if r[1] in ACTION_ACTS] + [('<  Retour', 'back')]
-    if page == 'out':
-        extra = OUT_ITEMS.get(animal, OUT_DEFAULT)
-        return [('Sortir', None)] + extra + [r for r in rows if r[1] in OUT_ACTS] + [('<  Retour', 'back')]
-    out = []
-    for r in rows:
-        if r[1] in ACTION_ACTS or r[1] in OUT_ACTS:
-            continue
-        out.append(r)
-        if r[1] == 'cute':
-            out.append(('Actions   >', 'actions'))
-            out.append(('Sortir   >', 'out'))
+def menu_tabs(animal):
+    t = [] if animal == 'spider' else [('state', 'Etat')]
+    return t + [('actions', 'Actions'), ('out', 'Sortir'), ('animal', 'Animal'), ('settings', 'Reglages')]
+
+
+def menu_active(page, animal):
+    keys = [k for k, _ in menu_tabs(animal)]
+    return page if page in keys else keys[0]
+
+
+def paged_menu(page, animal, rows, pet=None):
+    """Menu en onglets (Etat, Actions, Sortir, Animal, Reglages) : une bande d'onglets en haut, le contenu dessous."""
+    page = menu_active(page, animal)
+    out = [('\x00tabs', 'tabclick')]
+    if page == 'state' and pet is not None:
+        out += pet.state_rows()
+    elif page == 'actions':
+        if animal == 'spider':
+            out += [r for r in rows if r[1] is None and r[0].startswith('Faim')]
+        out += [r for r in rows if r[1] in ACTION_ACTS]
+    elif page == 'out':
+        out += OUT_ITEMS.get(animal, OUT_DEFAULT) + [r for r in rows if r[1] in OUT_ACTS]
+        out.append(('Signaler un bug...', 'bug'))
+    elif page == 'animal':
+        out += [r for r in rows if r[1] in ANIMAL_ACTS]
+        if pet is not None and hasattr(pet, 'life'):
+            out += [('Nouvel animal (recommencer)...', 'reset'), ('Charger un animal...', 'load')]
+    else:
+        base = [r for r in rows if r[1] in SETTING_ACTS and r[1] not in ('size+', 'size-', 'vol+', 'vol-')]
+        if pet is not None:                                     # taille et volume : des curseurs a faire glisser
+            base = [('S:Taille:%.4f:%d %%' % (clamp((pet.s - 0.8) / 2.4, 0.0, 1.0), round(pet.s / 1.4 * 100)), 'slider:size')] + base
+            i_ = next((k for k, r in enumerate(base) if r[1] == 'sound'), len(base) - 1)
+            base.insert(i_ + 1, ('S:Volume:%.4f:%d %%' % ((pet.snd.volume - 0.1) / 0.9, round(pet.snd.volume * 100)), 'slider:vol'))
+        extra = []
+        if pet is not None and hasattr(pet, 'draw_cat') and _PI is not None:
+            extra.append(('Qualite : ' + ('lissee' if pet.aa_on else 'standard'), 'quality'))
+        n = monitor_count()
+        if n > 1:
+            extra.append(('Ecran : %d sur %d   (changer >)' % (MON.get('index', 1), n), 'monitor'))
+        extra.append(('Menu au lancement : ' + ('oui' if PREFS.get('launcher', True) else 'non'), 'launcher'))
+        extra.append(('Mise a jour   (v%s)' % VERSION, 'update'))
+        if UPDATER.msg:
+            extra.append((UPDATER.msg, None))
+        out += [r for r in base if r[1] not in ('pause', 'quit')] + extra + [r for r in base if r[1] in ('pause', 'quit')]
     return out
 
 
@@ -7262,10 +8495,6 @@ class DogPet(CatPet):
         happy = (ct.gal > 0.3 or self.state in self.HAPPY or (self.state == 'idle' and ct.wag > 0.5)
                  or (self.state == 'walk' and self.hunger < 0.5 and False))
         ct.tng += ((1.0 if happy else 0.0) - ct.tng) * min(1.0, dt * 6)
-        for w in self.words:
-            w[3] += dt
-            w[2] -= 16 * self.s * dt
-        self.words = [w for w in self.words if w[3] < 1.1]
 
     # ------------------------------------------------------------------ decisions
     def decide(self):
@@ -7564,7 +8793,7 @@ class DogPet(CatPet):
             ('Volume -', 'vol-'),
             ('Reprendre' if self.paused else 'Pause', 'pause'),
             ('Quitter', 'quit'),
-        ])
+        ], self)
 
     def menu_action(self, act):
         if act == 'bark':
@@ -7828,7 +9057,7 @@ class GoatPet(DogPet):
             ('Volume -', 'vol-'),
             ('Reprendre' if self.paused else 'Pause', 'pause'),
             ('Quitter', 'quit'),
-        ])
+        ], self)
 
     def menu_action(self, act):
         if act == 'butt':
@@ -7873,12 +9102,12 @@ class FerretPet(DogPet):
         self.sidedir = 1
 
     def update(self, dt):
-        super().update(dt * self.SPEED)                          # tout va plus vite : mouvements, sauts, animation
+        super().update(dt if self.life.egg_t is not None else dt * self.SPEED)     # tout va plus vite : mouvements, sauts, animation
 
     # ------------------------------------------------------------------ utilitaires
     def sound(self, name):
         if name == 'purr':
-            name = 'snore' if self.state == 'sleep' else 'dook'
+            name = 'snore' if self.state == 'sleep' else 'dook_s'
         elif name == 'meow':
             name = 'dook'
         self.snd.play(name)
@@ -8091,7 +9320,7 @@ class FerretPet(DogPet):
             ('Volume -', 'vol-'),
             ('Reprendre' if self.paused else 'Pause', 'pause'),
             ('Quitter', 'quit'),
-        ])
+        ], self)
 
     def menu_action(self, act):
         if act == 'fchase':
@@ -8209,6 +9438,506 @@ def read_windows(max_n=8):
 
 
 # ------------------------------------------------------------------- application
+# ============================================================================ FENETRES : nom, choix de l'animal, sauvegardes
+DLG = dict(bg='#fff6ec', card='#ffffff', fg='#3b2f27', sub='#8c7b6b', acc='#ff7f50', acc2='#ffd9c7', line='#ecdccb', btn='#f3e6d8')
+PREFS = {'launcher': True}
+MAMMALS = ('cat', 'dog', 'goat', 'ferret')
+
+
+def coat_table(kind):
+    """(dictionnaire des pelages, cle de config, ordre) pour une race."""
+    if kind == 'spider':
+        return SPECIES, 'species', SPECIES_ORDER
+    if kind == 'dog':
+        return DOG_COATS, 'dcoat', list(DOG_COATS)
+    if kind == 'goat':
+        return GOAT_COATS, 'gcoat', list(GOAT_COATS)
+    if kind == 'ferret':
+        return FERRET_COATS, 'fcoat', list(FERRET_COATS)
+    return COATS, 'coat', COAT_ORDER
+
+
+def coat_name(kind, k):
+    return coat_table(kind)[0].get(k, {}).get('name', str(k))
+
+
+def valid_coat(kind, k):
+    tab, _, order = coat_table(kind)
+    return k if k in tab else order[0]
+
+
+def record_text(rec):
+    """Ligne de resume d'un animal sauvegarde : nom, race, pelage, age."""
+    life = rec.get('life') or {}
+    kind = rec.get('kind', 'cat')
+    name = str(life.get('name') or 'Sans nom')
+    if life.get('egg_t') is not None:
+        age = 'oeuf'
+    else:
+        try:
+            d = max(0.0, (time.time() - float(life.get('born', time.time()))) / 86400.0)
+        except Exception:
+            d = 0.0
+        age = '%d h' % int(d * 24) if d < 1 else '%d j' % int(d)
+    return '%s  -  %s %s, %s' % (name, ANIMALS.get(kind, kind), coat_name(kind, rec.get('coat')).lower(), age)
+
+
+def _dlg_window(master, title):
+    w = tk.Toplevel(master)
+    w.title(title)
+    w.configure(bg=DLG['bg'])
+    w.resizable(False, False)
+    try:
+        w.attributes('-topmost', True)
+    except Exception:
+        pass
+    return w
+
+
+def _dlg_place(w, x=None, y=None):
+    """Centre la fenetre (sur l'ecran de l'animal, ou pres d'un point) et lui donne le clavier."""
+    w.update_idletasks()
+    ww, hh = w.winfo_reqwidth(), w.winfo_reqheight()
+    rect = MON.get('rect') or (0, 0, w.winfo_screenwidth(), w.winfo_screenheight())
+    if x is None:
+        x, y = (rect[0] + rect[2] - ww) // 2, (rect[1] + rect[3] - hh) // 2
+    else:
+        x, y = int(clamp(x - ww / 2, rect[0] + 10, rect[2] - ww - 10)), int(clamp(y - hh - 30, rect[1] + 10, rect[3] - hh - 60))
+    w.geometry('+%d+%d' % (x, y))
+    w.lift()
+
+    def grab_focus():
+        try:
+            hwnd = int(w.wm_frame(), 16)                         # on se branche un instant sur la fenetre active pour avoir le clavier
+            fg = user32.GetForegroundWindow()
+            t_fg = user32.GetWindowThreadProcessId(fg, None)
+            t_me = ctypes.windll.kernel32.GetCurrentThreadId()
+            if t_fg and t_fg != t_me:
+                user32.AttachThreadInput(t_me, t_fg, True)
+            user32.SetForegroundWindow(hwnd)
+            if t_fg and t_fg != t_me:
+                user32.AttachThreadInput(t_me, t_fg, False)
+        except Exception:
+            pass
+        try:
+            w.focus_force()
+        except Exception:
+            pass
+    w.after(30, grab_focus)
+
+
+def _btn(parent, text, cmd, main=False, small=False):
+    return tk.Button(parent, text=text, command=cmd, relief='flat', bd=0, cursor='hand2',
+                     bg=DLG['acc'] if main else DLG['btn'], fg='#ffffff' if main else DLG['fg'],
+                     activebackground='#ff9a70' if main else DLG['acc2'], activeforeground='#ffffff' if main else DLG['fg'],
+                     font=('Segoe UI', 9 if small else 11, 'bold' if main else 'normal'), padx=10 if small else 16, pady=3 if small else 7)
+
+
+def ask_name(master, on_ok, initial='', x=None, y=None, on_cancel=None):
+    """Petite fenetre : « Comment veux-tu le nommer ? » avec une case pour ecrire."""
+    w = _dlg_window(master, 'Un nom pour ton animal')
+    box = tk.Frame(w, bg=DLG['bg'], padx=26, pady=20)
+    box.pack()
+    tk.Label(box, text='Comment veux-tu le nommer ?', bg=DLG['bg'], fg=DLG['fg'], font=('Segoe UI', 15, 'bold')).pack(anchor='w')
+    tk.Label(box, text='Tu pourras le changer plus tard (État > Nom).', bg=DLG['bg'], fg=DLG['sub'], font=('Segoe UI', 9)).pack(anchor='w', pady=(2, 12))
+    var = tk.StringVar(value=initial)
+    frame = tk.Frame(box, bg=DLG['acc'], padx=2, pady=2)
+    frame.pack(fill='x')
+    ent = tk.Entry(frame, textvariable=var, font=('Segoe UI', 15), relief='flat', bd=6, bg=DLG['card'], fg=DLG['fg'],
+                   insertbackground=DLG['fg'], width=22)
+    ent.pack(fill='x')
+    msg = tk.Label(box, text=' ', bg=DLG['bg'], fg='#d0453a', font=('Segoe UI', 9))
+    msg.pack(anchor='w', pady=(4, 0))
+
+    def ok(_e=None):
+        name = ' '.join(var.get().split())[:18]
+        if not name:
+            msg.config(text='Écris un nom (ou clique sur « Plus tard »).')
+            return
+        w.destroy()
+        on_ok(name)
+
+    def cancel(_e=None):
+        w.destroy()
+        if on_cancel:
+            on_cancel()
+    row = tk.Frame(box, bg=DLG['bg'])
+    row.pack(fill='x', pady=(10, 0))
+    _btn(row, 'Valider', ok, main=True).pack(side='right')
+    _btn(row, 'Plus tard', cancel).pack(side='right', padx=8)
+    ent.bind('<Return>', ok)
+    ent.bind('<Escape>', cancel)
+    w.protocol('WM_DELETE_WINDOW', cancel)
+    ent.select_range(0, 'end')
+    _dlg_place(w, x, y)
+    w.after(60, ent.focus_set)
+    return w
+
+
+def ask_yes_no(master, title, text, on_yes, yes='Oui', no='Annuler'):
+    w = _dlg_window(master, title)
+    box = tk.Frame(w, bg=DLG['bg'], padx=26, pady=20)
+    box.pack()
+    tk.Label(box, text=title, bg=DLG['bg'], fg=DLG['fg'], font=('Segoe UI', 14, 'bold')).pack(anchor='w')
+    tk.Label(box, text=text, bg=DLG['bg'], fg=DLG['sub'], font=('Segoe UI', 10), justify='left', wraplength=360).pack(anchor='w', pady=(6, 14))
+    row = tk.Frame(box, bg=DLG['bg'])
+    row.pack(fill='x')
+
+    def go():
+        w.destroy()
+        on_yes()
+    _btn(row, yes, go, main=True).pack(side='right')
+    _btn(row, no, w.destroy).pack(side='right', padx=8)
+    w.bind('<Escape>', lambda e: w.destroy())
+    _dlg_place(w)
+    return w
+
+
+class Chooser:
+    """Choix de la race et du pelage, avec un apercu anime. mode 'launch' (au demarrage) ou 'new' (nouvel animal)."""
+
+    def __init__(self, master, mode, kind, coats, on_done, summary='', saves=None, on_load=None):
+        self.mode, self.on_done, self.on_load = mode, on_done, on_load
+        self.kind = kind if kind in ANIMALS_READY and (mode == 'launch' or kind in MAMMALS) else 'cat'
+        self.coats = dict(coats)                                  # pelage retenu pour chaque race
+        self.saves = saves or []
+        self.done = False
+        self.t = 0.0
+        w = self.win = _dlg_window(master, 'Desktop Pet' if mode == 'launch' else 'Nouvel animal')
+        self.banner = tk.Canvas(w, width=700, height=70, bg=DLG['bg'], highlightthickness=0, cursor='hand2')
+        self.banner.pack(fill='x')                                # un animal de chaque, accroche en haut de la fenetre
+        self.banner.bind('<Button-1>', self.banner_click)
+        self.make_hangers()
+        box = tk.Frame(w, bg=DLG['bg'], padx=24, pady=8)
+        box.pack()
+        tk.Label(box, text='Choisis ton compagnon' if mode == 'launch' else 'Un nouvel animal', bg=DLG['bg'], fg=DLG['fg'],
+                 font=('Segoe UI', 18, 'bold')).pack(anchor='w')
+        if summary:
+            tk.Label(box, text=summary, bg=DLG['bg'], fg=DLG['sub'], font=('Segoe UI', 10), justify='left', wraplength=620).pack(anchor='w', pady=(2, 0))
+        body = tk.Frame(box, bg=DLG['bg'])
+        body.pack(fill='x', pady=(14, 0))
+        card = tk.Frame(body, bg=DLG['line'], padx=1, pady=1)
+        card.pack(side='left', anchor='n')
+        self.cv = tk.Canvas(card, width=300, height=230, bg='#eaf3fb', highlightthickness=0)
+        self.cv.pack()
+        right = tk.Frame(body, bg=DLG['bg'], padx=20)
+        right.pack(side='left', fill='both', anchor='n')
+        tk.Label(right, text='RACE', bg=DLG['bg'], fg=DLG['sub'], font=('Segoe UI', 9, 'bold')).pack(anchor='w')
+        rr = tk.Frame(right, bg=DLG['bg'])
+        rr.pack(anchor='w', pady=(4, 12))
+        self.race_btns = {}
+        kinds = [k for k in ANIMALS if k in ANIMALS_READY and (mode == 'launch' or k in MAMMALS)]
+        for i, k in enumerate(kinds):
+            b = tk.Button(rr, text=ANIMALS[k], relief='flat', bd=0, cursor='hand2', font=('Segoe UI', 10), padx=10, pady=5,
+                          command=lambda k=k: self.pick_kind(k))
+            b.grid(row=i // 3, column=i % 3, padx=(0, 6), pady=(0, 6), sticky='we')
+            self.race_btns[k] = b
+        tk.Label(right, text='PELAGE', bg=DLG['bg'], fg=DLG['sub'], font=('Segoe UI', 9, 'bold')).pack(anchor='w')
+        self.coat_box = tk.Frame(right, bg=DLG['bg'])
+        self.coat_box.pack(anchor='w', pady=(4, 0))
+        self.coat_btns = {}
+        bot = tk.Frame(box, bg=DLG['bg'])
+        bot.pack(fill='x', pady=(18, 0))
+        if mode == 'launch':
+            self.show_var = tk.BooleanVar(value=PREFS.get('launcher', True))
+            tk.Checkbutton(bot, text='Afficher ce menu au lancement', variable=self.show_var, bg=DLG['bg'], fg=DLG['sub'],
+                           activebackground=DLG['bg'], selectcolor=DLG['card'], font=('Segoe UI', 9)).pack(side='left')
+            _btn(bot, "C'est parti !", lambda: self.finish('go'), main=True).pack(side='right')
+            self.new_btn = _btn(bot, 'Nouvel œuf', lambda: self.finish('new'))
+            self.new_btn.pack(side='right', padx=(8, 0))
+            if self.saves:
+                _btn(bot, 'Charger un animal (%d)' % len(self.saves), self.open_load).pack(side='right', padx=(8, 0))
+        else:
+            _btn(bot, "Faire éclore l'œuf", lambda: self.finish('new'), main=True).pack(side='right')
+            _btn(bot, 'Annuler', self.cancel).pack(side='right', padx=8)
+        w.protocol('WM_DELETE_WINDOW', (lambda: self.finish('go')) if mode == 'launch' else self.cancel)
+        w.bind('<Return>', lambda e: self.finish('go' if mode == 'launch' else 'new'))
+        w.bind('<Escape>', lambda e: self.finish('go') if mode == 'launch' else self.cancel())
+        self.pick_kind(self.kind)
+        _dlg_place(w)
+        self.anim()
+
+    def make_hangers(self):
+        self.hangers = []
+        for k in ANIMALS:
+            if k not in ANIMALS_READY or (self.mode != 'launch' and k not in MAMMALS):
+                continue
+            try:
+                if k == 'spider':
+                    m = Spider(0, 0, 1.25, valid_coat('spider', self.coats.get('spider')))
+                else:
+                    m = Cat(0, 0, 1.05, valid_coat(k, self.coats.get(k)))
+                    m.view, m.hlook = 'front', True
+                    m.set_pose('rim_peek', 40)
+                    for _ in range(30):
+                        m.update(0.04, 0, True)
+                        m.view = 'front'
+            except Exception:
+                m = None
+            self.hangers.append([k, m, random.uniform(0, 6)])
+
+    def banner_xs(self):
+        W = max(300, self.banner.winfo_width())
+        n = max(1, len(self.hangers))
+        return [W * (i + 0.5) / n for i in range(n)]
+
+    def banner_click(self, e):
+        xs = self.banner_xs()
+        if xs:
+            i = min(range(len(xs)), key=lambda j: abs(xs[j] - e.x))
+            self.pick_kind(self.hangers[i][0])
+
+    def draw_banner(self):
+        """Comme sur le bureau : les animaux sont derriere la fenetre et passent la tete et les pattes au-dessus du bord ;
+        l'araignee, elle, est posee sur le bord."""
+        cv = self.banner
+        cv.delete('all')
+        W = max(300, cv.winfo_width())
+        H = int(cv.cget('height'))
+        edge = 56                                                 # bord haut de la « fenetre »
+        cv.create_rectangle(0, 0, W, edge, fill='#dfeaf4', outline='')            # le bureau, derriere
+        spider = None
+        for i, ((k, m, ph), x) in enumerate(zip(self.hangers, self.banner_xs())):
+            if k == 'spider':
+                spider = (i, x)
+            elif m is not None:                                   # accroche au bord : le corps est cache derriere la fenetre
+                sw = math.sin(self.t * 1.3 + ph)
+                m.x, m.y = x + 2 * sw, edge + 34 * m.u + 2 * abs(sw)
+                m.update(0.04, 0, True)
+                m.view = 'front'
+                m.draw(cv)
+        cv.create_rectangle(0, edge, W, H, fill=DLG['bg'], outline='')            # la fenetre passe devant le corps
+        cv.create_line(0, edge, W, edge, fill='#cdb8a2', width=2)
+        if spider is not None:                                    # l'araignee posee sur le bord
+            i, x = spider
+            m = self.hangers[i][1]
+            if m is None or abs(m.x - x) > 1:
+                try:
+                    m = self.hangers[i][1] = Spider(x, edge - 8, 1.15, valid_coat('spider', self.coats.get('spider')))
+                except Exception:
+                    m = None
+            if m is not None:
+                try:
+                    m.draw(cv)
+                except Exception:
+                    pass
+        for (k, m, ph), x in zip(self.hangers, self.banner_xs()):
+            if k == self.kind:
+                cv.create_text(x + 30, 14, text='♥', fill=DLG['acc'], font=('Segoe UI Symbol', 13, 'bold'))
+
+    def pick_kind(self, k):
+        self.kind = k
+        if getattr(self, 'new_btn', None) is not None:
+            self.new_btn.config(state='disabled' if k == 'spider' else 'normal')   # l'araignee n'a pas d'oeuf ni de vie
+        for kk, b in self.race_btns.items():
+            on = kk == k
+            b.config(bg=DLG['acc'] if on else DLG['btn'], fg='#ffffff' if on else DLG['fg'], activebackground='#ff9a70' if on else DLG['acc2'])
+        for b in self.coat_btns.values():
+            b.destroy()
+        self.coat_btns = {}
+        tab, _, order = coat_table(k)
+        self.coats[k] = valid_coat(k, self.coats.get(k))
+        for i, c in enumerate(order):
+            b = tk.Button(self.coat_box, text=tab[c]['name'], relief='flat', bd=0, cursor='hand2', font=('Segoe UI', 9), padx=8, pady=4,
+                          command=lambda c=c: self.pick_coat(c))
+            b.grid(row=i // 3, column=i % 3, padx=(0, 6), pady=(0, 6), sticky='we')
+            self.coat_btns[c] = b
+        self.pick_coat(self.coats[k])
+
+    def pick_coat(self, c):
+        self.coats[self.kind] = c
+        for cc, b in self.coat_btns.items():
+            on = cc == c
+            b.config(bg=DLG['acc2'] if on else DLG['card'], fg=DLG['fg'], relief='solid' if on else 'flat', bd=1 if on else 0)
+        self.make_model()
+
+    def make_model(self):
+        self.model = None
+        self.t = 0.0
+        try:
+            if self.kind == 'spider':
+                self.model = Spider(150, 120, 2.2, self.coats['spider'])
+            else:
+                u = {'dog': 1.35, 'goat': 1.4, 'ferret': 1.45}.get(self.kind, 1.6)
+                ct = Cat(150, 196, u, self.coats[self.kind])
+                ct.dir = 1
+                ct.view, ct.hlook = '3q', True
+                ct.set_pose('sit', 30)
+                for _ in range(30):
+                    ct.update(0.04, 0, True)
+                    ct.view = '3q'
+                self.model = ct
+        except Exception:
+            self.model = None
+
+    def anim(self):
+        if self.done:
+            return
+        try:
+            self.draw_banner()
+        except Exception:
+            pass
+        try:
+            cv = self.cv
+            cv.delete('all')
+            cv.create_rectangle(0, 196, 300, 230, fill='#d9e6c8', outline='')
+            cv.create_oval(95, 190, 205, 204, fill='#c4d3b2', outline='')
+            self.t += 0.04
+            m = self.model
+            if isinstance(m, Cat):
+                ph = int(self.t / 3.5) % 3
+                m.set_pose(('sit', 'stand', 'sit')[ph], 6)
+                m.view = ('3q', 'side', 'front')[ph]
+                m.update(0.04, 0, True)
+                m.view = ('3q', 'side', 'front')[ph]
+                m.draw(cv)
+            elif m is not None:
+                m.draw(cv)
+            else:
+                cv.create_text(150, 110, text=ANIMALS.get(self.kind, ''), fill=DLG['fg'], font=('Segoe UI', 16, 'bold'))
+            cv.create_text(150, 20, text='%s  -  %s' % (ANIMALS[self.kind], coat_name(self.kind, self.coats[self.kind])),
+                           fill=DLG['fg'], font=('Segoe UI', 11, 'bold'))
+        except Exception:
+            pass
+        self.win.after(40, self.anim)
+
+    def open_load(self):
+        def chosen(i):
+            self.finish('load', i)
+        load_menu(self.win, self.saves, chosen, None)
+
+    def finish(self, what, idx=None):
+        if self.done:
+            return
+        self.done = True
+        res = {'what': what, 'kind': self.kind, 'coat': self.coats[self.kind], 'idx': idx}
+        if self.mode == 'launch':
+            res['show'] = bool(self.show_var.get())
+        self.win.destroy()
+        self.on_done(res)
+
+    def cancel(self):
+        if not self.done:
+            self.done = True
+            self.win.destroy()
+            self.on_done(None)
+
+
+def load_menu(master, saves, on_load, on_delete):
+    """Liste des animaux sauvegardes : Charger (et Supprimer si on_delete)."""
+    w = _dlg_window(master, 'Mes animaux')
+    box = tk.Frame(w, bg=DLG['bg'], padx=24, pady=18)
+    box.pack()
+    tk.Label(box, text='Mes animaux sauvegardés', bg=DLG['bg'], fg=DLG['fg'], font=('Segoe UI', 16, 'bold')).pack(anchor='w')
+    tk.Label(box, text="Charger un animal met l'animal actuel de côté : tu pourras le reprendre ici.", bg=DLG['bg'], fg=DLG['sub'],
+             font=('Segoe UI', 9)).pack(anchor='w', pady=(2, 12))
+    lst = tk.Frame(box, bg=DLG['bg'])
+    lst.pack(fill='x')
+
+    def fill():
+        for ch in lst.winfo_children():
+            ch.destroy()
+        if not saves:
+            tk.Label(lst, text='Aucun animal sauvegardé pour le moment.', bg=DLG['bg'], fg=DLG['sub'], font=('Segoe UI', 10)).pack(anchor='w', pady=8)
+        for i, rec in enumerate(saves):
+            row = tk.Frame(lst, bg=DLG['card'], padx=12, pady=8, highlightbackground=DLG['line'], highlightthickness=1)
+            row.pack(fill='x', pady=(0, 6))
+            tk.Label(row, text=record_text(rec), bg=DLG['card'], fg=DLG['fg'], font=('Segoe UI', 11)).pack(side='left')
+            _btn(row, 'Charger', lambda i=i: (w.destroy(), on_load(i)), main=True, small=True).pack(side='right')
+            if on_delete:
+                _btn(row, 'Supprimer', lambda i=i: ask_yes_no(w, 'Supprimer cet animal ?', '%s sera effacé pour de bon.' % record_text(saves[i]),
+                                                                lambda i=i: (on_delete(i), fill()), yes='Supprimer'),
+                     small=True).pack(side='right', padx=6)
+    fill()
+    bot = tk.Frame(box, bg=DLG['bg'])
+    bot.pack(fill='x', pady=(10, 0))
+    _btn(bot, 'Fermer', w.destroy).pack(side='right')
+    w.bind('<Escape>', lambda e: w.destroy())
+    _dlg_place(w)
+    return w
+
+
+def _anon(text):
+    """Retire le nom d'utilisateur Windows des chemins (le rapport est public sur GitHub)."""
+    home = os.path.expanduser('~')
+    user = os.path.basename(home)
+    text = text.replace(home, '~').replace(home.replace('\\', '/'), '~')
+    if len(user) > 2:
+        text = text.replace(user, '<utilisateur>')
+    return text
+
+
+def bug_dialog(master, info, log_path):
+    """Rapport de bug : on decrit le probleme, on voit exactement ce qui sera envoye, puis GitHub s'ouvre
+    dans le navigateur avec le ticket pre-rempli (c'est toi qui cliques sur « Submit », avec ton compte GitHub)."""
+    import urllib.parse
+    import webbrowser
+    w = _dlg_window(master, 'Signaler un bug')
+    box = tk.Frame(w, bg=DLG['bg'], padx=24, pady=18)
+    box.pack()
+    tk.Label(box, text='Signaler un bug', bg=DLG['bg'], fg=DLG['fg'], font=('Segoe UI', 16, 'bold')).pack(anchor='w')
+    tk.Label(box, text="Raconte ce qui s'est passé : ton navigateur va ouvrir un ticket GitHub déjà rempli, tu n'auras plus qu'à l'envoyer.",
+             bg=DLG['bg'], fg=DLG['sub'], font=('Segoe UI', 9), wraplength=520, justify='left').pack(anchor='w', pady=(2, 10))
+    tk.Label(box, text='TITRE', bg=DLG['bg'], fg=DLG['sub'], font=('Segoe UI', 8, 'bold')).pack(anchor='w')
+    title = tk.StringVar()
+    fr = tk.Frame(box, bg=DLG['acc'], padx=2, pady=2)
+    fr.pack(fill='x', pady=(2, 8))
+    te = tk.Entry(fr, textvariable=title, font=('Segoe UI', 11), relief='flat', bd=5, bg=DLG['card'], fg=DLG['fg'], width=60)
+    te.pack(fill='x')
+    tk.Label(box, text="QUE S'EST-IL PASSÉ ?  (ce que tu faisais, ce que tu attendais)", bg=DLG['bg'], fg=DLG['sub'], font=('Segoe UI', 8, 'bold')).pack(anchor='w')
+    fr2 = tk.Frame(box, bg=DLG['line'], padx=1, pady=1)
+    fr2.pack(fill='x', pady=(2, 8))
+    desc = tk.Text(fr2, height=6, font=('Segoe UI', 10), relief='flat', bd=6, bg=DLG['card'], fg=DLG['fg'], wrap='word')
+    desc.pack(fill='x')
+    log_txt = ''
+    try:
+        with open(log_path, encoding='utf-8', errors='replace') as f:
+            log_txt = ''.join(f.readlines()[-40:]).strip()
+    except Exception:
+        pass
+    add_log = tk.BooleanVar(value=bool(log_txt))
+    tk.Checkbutton(box, text="Joindre le journal d'erreurs" + ('' if log_txt else '  (vide : aucune erreur enregistrée)'), variable=add_log,
+                   state='normal' if log_txt else 'disabled', bg=DLG['bg'], fg=DLG['fg'], activebackground=DLG['bg'], selectcolor=DLG['card'],
+                   font=('Segoe UI', 9)).pack(anchor='w')
+    tk.Label(box, text='Infos jointes automatiquement (ton nom d’utilisateur est retiré) :', bg=DLG['bg'], fg=DLG['sub'], font=('Segoe UI', 8)).pack(anchor='w', pady=(6, 0))
+    tk.Label(box, text=info, bg=DLG['bg'], fg=DLG['sub'], font=('Consolas', 8), justify='left').pack(anchor='w')
+    msg = tk.Label(box, text=' ', bg=DLG['bg'], fg='#d0453a', font=('Segoe UI', 9))
+    msg.pack(anchor='w')
+
+    def body():
+        b = '### Ce qui s\'est passé\n' + (desc.get('1.0', 'end').strip() or '(pas de description)') + '\n\n### Configuration\n```\n' + info + '\n```\n'
+        if add_log.get() and log_txt:
+            b += '\n### Journal d\'erreurs (fin)\n```\n' + log_txt[-3500:] + '\n```\n'
+        return _anon(b)
+
+    def send():
+        if not title.get().strip() and not desc.get('1.0', 'end').strip():
+            msg.config(text='Écris au moins un titre ou une description.')
+            return
+        t = title.get().strip() or '[Bug] ' + desc.get('1.0', 'end').strip().splitlines()[0][:60]
+        url = 'https://github.com/%s/issues/new?%s' % (GITHUB_REPO, urllib.parse.urlencode({'title': _anon(t), 'body': body()[:6000], 'labels': 'bug'}))
+        try:
+            webbrowser.open(url)
+        except Exception:
+            msg.config(text="Impossible d'ouvrir le navigateur : utilise « Copier le rapport ».")
+            return
+        w.destroy()
+
+    def copy():
+        w.clipboard_clear()
+        w.clipboard_append((title.get().strip() + '\n\n' if title.get().strip() else '') + body())
+        msg.config(text='Rapport copié : colle-le dans un ticket sur github.com/%s/issues' % GITHUB_REPO, fg=DLG['sub'])
+    row = tk.Frame(box, bg=DLG['bg'])
+    row.pack(fill='x', pady=(8, 0))
+    _btn(row, 'Ouvrir le ticket sur GitHub', send, main=True).pack(side='right')
+    _btn(row, 'Copier le rapport', copy).pack(side='right', padx=8)
+    _btn(row, 'Annuler', w.destroy).pack(side='left')
+    w.bind('<Escape>', lambda e: w.destroy())
+    _dlg_place(w)
+    w.after(60, te.focus_set)
+    return w
+
+
 def make_click_through(root):
     root.update_idletasks()
     wid = root.winfo_id()
@@ -8230,6 +9959,58 @@ def set_clickthrough(top, on):
 def quit_hotkey():
     down = lambda vk: user32.GetAsyncKeyState(vk) & 0x8000
     return down(0x11) and down(0x12) and down(ord('Q'))
+
+
+def run_launcher(cfg):
+    """Menu de demarrage : race et pelage (et charger / nouvel oeuf). Modifie cfg ; True si quelque chose a change."""
+    try:
+        lr = tk.Tk()
+        lr.withdraw()
+    except Exception:
+        return False
+    kind_now = str(cfg.get('animal', 'spider'))
+    life_kind = cfg.get('life_kind') if cfg.get('life_kind') in MAMMALS else (kind_now if kind_now in MAMMALS else 'cat')
+    coats = {k: cfg.get(coat_table(k)[1]) for k in ANIMALS}
+    life_d = cfg.get('life') if isinstance(cfg.get('life'), dict) else None
+    saves = [r for r in cfg.get('saved', []) if isinstance(r, dict) and r.get('kind') in MAMMALS and isinstance(r.get('life'), dict)] \
+        if isinstance(cfg.get('saved'), list) else []
+    if life_d:
+        cur = record_text({'kind': life_kind, 'coat': coats.get(life_kind), 'life': life_d})
+        summary = 'Ton animal : ' + cur + ('' if kind_now != 'spider' else '   (en ce moment : araignee)')
+    else:
+        summary = 'Choisis une race et un pelage : un œuf va apparaître sur ton bureau.'
+    res = {}
+    ch = Chooser(lr, 'launch', kind_now, coats, lambda r: res.update(r or {}), summary=summary, saves=saves)
+    try:
+        lr.wait_window(ch.win)
+    except Exception:
+        pass
+    try:
+        lr.destroy()
+    except Exception:
+        pass
+    if not res:
+        return False
+    PREFS['launcher'] = res.get('show', True)
+    cfg['show_launcher'] = PREFS['launcher']
+    what, kind, coat = res['what'], res['kind'], res['coat']
+    cur_rec = {'kind': life_kind, 'coat': valid_coat(life_kind, coats.get(life_kind)), 'life': life_d} if life_d else None
+    if what == 'load' and res.get('idx') is not None and 0 <= res['idx'] < len(saves):
+        rec = saves.pop(res['idx'])
+        if cur_rec:
+            saves.append(cur_rec)
+        kind, coat = rec['kind'], rec.get('coat')
+        cfg['life'] = rec['life']
+    elif what == 'new' and kind in MAMMALS:
+        if cur_rec:
+            saves.append(cur_rec)
+        cfg['life'] = Life.new_egg().dump()
+    cfg['saved'] = saves
+    cfg['animal'] = kind
+    cfg[coat_table(kind)[1]] = valid_coat(kind, coat)
+    if kind in MAMMALS:
+        cfg['life_kind'] = kind
+    return True
 
 
 def main():
@@ -8254,11 +10035,21 @@ def main():
     cfg_path = os.path.join(app_dir, 'araignee_config.json')
     cfg = {}
     if '--selftest' not in argv:
-        try:
-            import json
-            cfg = json.load(open(cfg_path, encoding='utf-8'))
-        except Exception:
-            cfg = {}
+        import json
+        for pth in (cfg_path, cfg_path + '.bak'):                # fichier abime : on reprend la copie de secours
+            try:
+                with open(pth, encoding='utf-8') as f:
+                    d_ = json.load(f)
+            except Exception:
+                continue
+            if isinstance(d_, dict):
+                cfg = d_
+                if pth == cfg_path:
+                    try:
+                        shutil.copy2(cfg_path, cfg_path + '.bak')    # copie de secours d'un fichier qui se lit bien
+                    except Exception:
+                        pass
+                break
     species = opt('--espece', cfg.get('species', 'peacock'))
     if species not in SPECIES:
         species = 'peacock'
@@ -8290,6 +10081,7 @@ def main():
         mon_i = 2
     if selftest or not (1 <= mon_i <= len(mons)):
         mon_i = 1
+    MON['index'] = mon_i
     if mons:
         mr = mons[mon_i - 1]['rect']
         MON['ox'], MON['oy'], MON['rect'] = mr[0], mr[1], mr
@@ -8298,6 +10090,11 @@ def main():
     else:
         sw, sh = user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
         wk = None
+    PREFS['launcher'] = bool(cfg.get('show_launcher', True))
+    launch_changed = False
+    if (not selftest and PREFS['launcher'] and '--direct' not in argv and '--animal' not in argv
+            and not any(a in argv for a in ('--regtest', '--dancetest', '--flytest', '--switchtest'))):
+        launch_changed = run_launcher(cfg)
     root = tk.Tk()
     scale = float(opt('--scale', 1.4)) * max(1.0, sh / 1080.0)
     root.overrideredirect(True)
@@ -8471,18 +10268,31 @@ def main():
         if selftest:
             p_.getbtn = lambda: False
         p_.cfg_save = save_cfg
+        if hasattr(p_, 'draw_cat'):
+            p_.aa_on = bool(shared.get('aa', True))
         p_.quit_cb = root.destroy
         p_.switch_animal_cb = switch_animal
+        p_.bug_cb = report_bug
+        if hasattr(p_, 'life'):
+            p_.ask_name_cb, p_.reset_cb, p_.load_cb = ask_pet_name, new_animal, open_saves
         if hasattr(p_, 'sample_cb'):
             p_.sample_cb = sample_color
         return p_
 
-    def switch_animal(kind):
-        """Menu > Race : remplace le cerveau actuel (araignée <-> chat) en gardant sons, panier, taille, style."""
+    def switch_animal(kind, life=None, coat=None):
+        """Menu > Race : remplace le cerveau actuel (araignée <-> chat) en gardant sons, panier, taille, style.
+        life / coat : on installe un autre animal (chargement d'une sauvegarde, nouvel oeuf)."""
         nonlocal pet
         old = pet
-        if kind == getattr(old, 'animal', None):
+        if kind == getattr(old, 'animal', None) and life is None and coat is None:
             return
+        if kind in ANIMALS:
+            if coat is not None:
+                shared[coat_table(kind)[1]] = valid_coat(kind, coat)
+        if hasattr(old, 'life_save'):
+            old.life_save()
+        if hasattr(old, 'close_layers'):
+            old.close_layers()
         if kind in ('cat', 'dog', 'goat', 'ferret'):
             if kind == 'cat':
                 coat = shared.get('coat') if shared.get('coat') in COATS else 'tabby'
@@ -8499,7 +10309,16 @@ def main():
             new.snd, new.bk = old.snd, old.bk
             new.snap_basket()
             new.set_cute(old.cute)
-            new.hunger = old.hunger
+            if life is not None:
+                new.life = life
+                new.hunger = life.hunger
+            elif hasattr(old, 'life'):
+                new.life = old.life                              # c'est le meme animal, il change juste de race
+                new.hunger = old.hunger
+            else:
+                new.life = Life.load(shared.get('life'))
+                new.hunger = new.life.hunger
+            new.apply_growth()
             new.ambient = bool(shared.get('ambient', True))
             if kind == 'cat':
                 new.buddy_on = bool(shared.get('buddy', False))
@@ -8515,6 +10334,8 @@ def main():
         else:
             return
         wire(new)
+        if hasattr(new, 'life_save'):
+            new.life_save()
         new.set_windows(old.windows)
         if getattr(new, 'comp_on', False):
             new.ensure_comp()
@@ -8523,7 +10344,103 @@ def main():
         renderer.reset()
         new.save_config()
 
+    dlg_open = {}
+
+    def single(key, make):                                      # une seule fenetre de chaque sorte a la fois
+        w = dlg_open.get(key)
+        try:
+            if w is not None and (w.winfo_exists() if hasattr(w, 'winfo_exists') else w.win.winfo_exists()):
+                (w if hasattr(w, 'lift') else w.win).lift()
+                return
+        except Exception:
+            pass
+        dlg_open[key] = make()
+
+    def report_bug():
+        import platform
+        p = pet
+        kind = getattr(p, 'animal', 'spider')
+        coat = getattr(getattr(p, 'cat', None), 'coat', None) or getattr(getattr(p, 'sp', None), 'species', '?')
+        info = '\n'.join([
+            'Version : %s (%s)' % (VERSION, 'exe' if getattr(sys, 'frozen', False) else 'sources Python %s' % platform.python_version()),
+            'Windows : %s' % platform.platform(),
+            'Animal  : %s / %s, taille %.2f' % (ANIMALS.get(kind, kind), coat, getattr(p, 's', 0)),
+            'Ecran   : %d sur %d, %dx%d' % (MON.get('index', 1), monitor_count(), sw, sh),
+            'Rendu   : %s' % ('lisse' if getattr(p, 'aa_on', False) else 'standard'),
+            'Son     : %s, volume %d %%' % ('oui' if p.snd.on else 'coupe', round(p.snd.volume * 100)),
+            'Erreurs : %d depuis le lancement' % errs['n']])
+        single('bug', lambda: bug_dialog(root, info, err_path))
+
+    def saved_list():
+        lst = shared.get('saved')
+        return [r for r in lst if isinstance(r, dict) and r.get('kind') in MAMMALS and isinstance(r.get('life'), dict)] if isinstance(lst, list) else []
+
+    def current_record():
+        p = pet
+        if not hasattr(p, 'life'):
+            return None
+        p.life.hunger = p.hunger
+        return {'kind': p.animal, 'coat': p.cat.coat, 'life': p.life.dump()}
+
+    def ask_pet_name():
+        p = pet
+        if not hasattr(p, 'life'):
+            return
+
+        def ok(name):
+            if pet is p:
+                p.life.name = name
+                p.say('Je m appelle ' + name + ' !')
+                p.hearts.append([p.cat.x, p.cat.y - 70 * p.u, 0.0])
+                p.sound('ding')
+                p.life_save()
+        single('name', lambda: ask_name(root, ok, p.life.name, MON['ox'] + p.cat.x, MON['oy'] + p.cat.y - 60 * p.u))
+
+    def new_animal():
+        p = pet
+        if not hasattr(p, 'life'):
+            return
+        nm = p.life.name or 'Ton animal actuel'
+
+        def done(res):
+            if res is None or pet is not p:
+                return
+            rec = current_record()
+            lst = saved_list()
+            if rec:
+                lst.append(rec)                                  # l'animal actuel est mis de cote, pas efface
+            save_cfg({'saved': lst})
+            switch_animal(res['kind'], life=Life.new_egg(), coat=res['coat'])
+        coats = {k: shared.get(coat_table(k)[1]) for k in ANIMALS}
+        coats[p.animal] = p.cat.coat
+        single('chooser', lambda: Chooser(root, 'new', p.animal, coats, done,
+                                          summary='%s sera sauvegardé : tu pourras le reprendre avec Animal > Charger un animal.' % nm))
+
+    def open_saves():
+        lst = saved_list()
+
+        def load(i):
+            lst2 = saved_list()
+            if not (0 <= i < len(lst2)):
+                return
+            rec_new = lst2.pop(i)
+            rec = current_record()
+            if rec:
+                lst2.append(rec)
+            save_cfg({'saved': lst2})
+            switch_animal(rec_new['kind'], life=Life.load(rec_new['life']), coat=rec_new.get('coat'))
+
+        def delete(i):
+            lst2 = saved_list()
+            if 0 <= i < len(lst2):
+                lst2.pop(i)
+                save_cfg({'saved': lst2})
+                lst[:] = lst2
+        single('saves', lambda: load_menu(root, lst, load, delete))
+
     wire(pet)
+    if launch_changed:
+        save_cfg({})
     if '--monitor' in argv or '--autre-ecran' in argv:
         save_cfg({'monitor': mon_i})                          # retenu pour les prochains lancements
     if 'bx' in cfg and 'by' in cfg:
@@ -8553,6 +10470,7 @@ def main():
     last = time.perf_counter()
     win_t = [0.0]
     fs_t = [0.0]
+    top_t = [0.0]
     hidden = [False]
     errs = {'n': 0, 'consec': 0}
     err_path = os.path.join(here, 'araignee_erreur.log')
@@ -8585,6 +10503,8 @@ def main():
                 if fs and not hidden[0]:
                     root.withdraw()
                     hidden[0] = True
+                    if hasattr(pet, 'hide_layers'):
+                        pet.hide_layers()
                 elif not fs and hidden[0]:
                     root.deiconify()
                     root.attributes('-topmost', True)
@@ -8598,15 +10518,29 @@ def main():
             steps = max(1, int(math.ceil(dt / 0.04)))
             for _ in range(steps):
                 pet.update(dt / steps)
+            if UPDATER.ready:                                      # mise a jour telechargee : on ferme, un script remplace l'exe et relance
+                new_exe, UPDATER.ready = UPDATER.ready, None
+                if hasattr(pet, 'life_save'):
+                    pet.life_save()
+                try:
+                    shutil.copy2(cfg_path, cfg_path + '.bak')                # filet de securite : age, etat, caractere...
+                except Exception:
+                    pass
+                apply_update(new_exe, UPDATER.exe_path, [x for x in relaunch_cmd()[1:]] + ['--direct'])
+                root.destroy()
+                return
             if t0 - win_t[0] > 0.4:
                 win_t[0] = t0
                 pet.set_windows(read_windows())
             if top and pet.interactive != inter[0]:
                 inter[0] = pet.interactive
+                if hasattr(pet, 'solid_layers'):
+                    pet.solid_layers(bool(inter[0]))
                 set_clickthrough(top, not inter[0])
                 canvas.config(cursor='hand2' if inter[0] else '')
             renderer.render(pet)
-            if int(t0) % 5 == 0:
+            if t0 - top_t[0] > 5:
+                top_t[0] = t0
                 root.attributes('-topmost', True)
             errs['consec'] = 0
         except tk.TclError:
@@ -8632,6 +10566,13 @@ def main():
     root.after(10, tick)
     root.after(150, hotkey_poll)
     root.mainloop()
+    if hasattr(pet, 'life_save'):
+        try:
+            pet.life_save()                                      # on garde les dernieres secondes de vie
+        except Exception:
+            pass
+    if hasattr(pet, 'close_layers'):
+        pet.close_layers()
 
 
 if __name__ == '__main__':

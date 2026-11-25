@@ -1,8 +1,30 @@
-# Araignée de bureau — un petit animal qui vit sur ton écran
+# Un petit animal qui vit sur ton écran
 
-Un compagnon animé qui se promène sur ton bureau Windows, par-dessus tes fenêtres, sans jamais bloquer la souris.
+> **Avertissement :** ce logiciel ne sert à rien. Il fait ça très bien.
 
-**Animaux :** araignée, chat, chien, chèvre naine, furet — chacun avec ses robes, ses comportements et ses sons.
+Tu as un rapport à rendre ? Parfait. Il a justement besoin d'attention.
+
+C'est un petit animal qui s'installe sur ton bureau Windows, se balade par-dessus tes fenêtres, grimpe dessus, se cache derrière, et n'a qu'**un seul but dans la vie : te distraire**. Il ne bloque jamais ta souris. Il bloque juste ta productivité.
+
+## Le casting
+
+| | Qui | Sa spécialité |
+|---|---|---|
+| 🕷️ | **L'araignée** | Tisse une toile dans un coin de l'écran pendant que tu ne regardes pas. Danse quand elle est contente. Ne demande rien, observe tout. |
+| 🐱 | **Le chat** | Te juge. Se cache dans sa boîte en carton. Fait tomber ta tasse du bord de la fenêtre en te regardant droit dans les yeux. |
+| 🐶 | **Le chien** | T'aime. Beaucoup. Tout le temps. Rapporte la balle même quand tu ne l'as pas lancée. |
+| 🐐 | **La chèvre naine** | Pique des crises de folie sans prévenir, saute partout et donne des coups de tête aux fenêtres. Personne ne sait pourquoi. Elle non plus. |
+| 🦦 | **Le furet** | Va trop vite. Chasse ton curseur comme si c'était un ennemi personnel. Fait « dook-dook ». |
+
+Chacun a plusieurs pelages, des grimaces (yeux qui louchent, cœurs dans les yeux, langue tirée...) et un **caractère tiré au sort à la naissance** : gourmand, paresseux, câlin, colérique, farceur, cochon... Oui, tu peux tomber sur un furet paresseux et cochon. Non, on ne rembourse pas.
+
+## Comme un Tamagotchi (en moins culpabilisant)
+
+- Il naît d'un **œuf**. Tu cliques dessus pour l'aider à éclore, puis **tu lui donnes un nom**.
+- Il grandit : bébé, jeune, adulte, senior.
+- Il a faim, sommeil, envie de jouer, et il se salit. Tu peux le nourrir, le laver, le soigner et le caresser (passe doucement la souris sur lui).
+- Il tombe malade si tu l'oublies trop longtemps, mais **il ne meurt jamais**. Ce logiciel est là pour te distraire, pas pour te faire pleurer.
+- Envie d'un autre ? **Animal > Nouvel animal** : l'ancien est rangé dans tes sauvegardes, pas abandonné. On n'est pas des monstres.
 
 ## Le bug de ce projet : avoir un animal de compagnie
 
@@ -12,51 +34,56 @@ Un compagnon animé qui se promène sur ton bureau Windows, par-dessus tes fenê
 - Tu commences à travailler, et dix minutes plus tard tu regardes une chèvre naine sauter de fenêtre en fenêtre.
 - Tu secoues la souris « pour voir » : le furet part à tes trousses, le chien aboie, le chat te juge.
 - Il se cache derrière ta fenêtre juste quand tu veux la déplacer, et s'endort sur celle que tu voulais fermer.
-- Tu te surprends à poser la gamelle « parce qu'il a peut-être faim ».
+- Tu poses la gamelle « parce qu'il a peut-être faim ».
 - Tu dis « pas maintenant » à un animal qui n'existe pas.
+- Tu as passé plus de temps à choisir son nom que le prénom de ton premier enfant.
 
 **Cause :** un animal de compagnie, même en pixels, demande de l'attention, des caresses et un peu de nourriture. La documentation officielle n'a pas trouvé d'autre explication.
 
-**Contournement :** clic droit > *Pause* (il arrête de bouger, il t'attend) ou *Quitter*. Fonctionne jusqu'au prochain lancement.
+**Contournement :** clic droit > *Réglages* > *Pause* (il arrête de bouger et te fixe avec des yeux tristes), ou *Quitter*. Fonctionne jusqu'au prochain lancement.
 
 **Correctif définitif :** aucun connu. Les tentatives de désinstallation provoquent surtout de la culpabilité.
 
-*Les vrais bugs (un animal coincé, un plantage...) sont les bienvenus dans l'onglet **Issues**.*
+*Les vrais bugs (un animal coincé, un plantage...) se signalent directement depuis le programme : clic droit sur le **panier** > **Sortir** > **Signaler un bug**. Ton navigateur ouvre un ticket déjà rempli, tu n'as plus qu'à l'envoyer.*
 
-## Installation (la plus simple)
+## Installation (30 secondes, dont 25 à hésiter)
 
-1. Va dans l'onglet **Releases** du dépôt et télécharge `AraigneeBureau.exe`.
-2. Double-clique dessus. C'est tout, il n'y a rien à installer.
-   - Windows peut afficher « Windows a protégé votre ordinateur » : clique sur **Informations complémentaires**, puis **Exécuter quand même** (l'exe n'est pas signé).
-3. Pour l'arrêter : clic droit sur l'animal > **Quitter**.
+1. Va dans l'onglet **Releases** et télécharge `AraigneeBureau.exe`.
+2. Double-clique dessus. C'est tout : **rien à installer, aucun Python, aucune dépendance**. Tout est dans le fichier.
+   - Windows peut afficher « Windows a protégé votre ordinateur » : clique sur **Informations complémentaires**, puis **Exécuter quand même**. L'exe n'est pas signé, l'animal non plus.
+3. Choisis ton animal et son pelage dans le menu de lancement. Un œuf apparaît.
+4. Adieu productivité.
 
-Tes réglages sont enregistrés dans `%APPDATA%\AraigneeBureau`.
+**Mettre à jour :** *Réglages* > *Mise à jour*. Il télécharge la dernière version depuis GitHub et redémarre, **sans oublier ton animal** (âge, nom, caractère, tout est gardé).
 
-## Utilisation
+**Désinstaller (si tu en as le cœur) :** quitte le programme, supprime `AraigneeBureau.exe`, puis le dossier `%APPDATA%\AraigneeBureau` où vivent ses souvenirs. Il ne laisse rien d'autre sur ton PC, pas même une petite crotte.
 
-- **Clic droit sur l'animal** : menu (Race, Pelage, Actions, Sortir, Donner à manger, Taille, Son...).
-- **Prendre l'animal / la balle / la gamelle** : clic gauche maintenu, puis relâcher.
-- **Caresser** : passe doucement la souris sur lui.
-- **Clic droit sur le panier** : sortir des proies ou des jouets.
-- Il peut sauter de fenêtre en fenêtre, grimper sur leurs bords et se cacher derrière celle du dessus.
+## Mode d'emploi
 
-Options de lancement : `--animal spider|cat|dog|goat|ferret`, `--monitor 2` (écran à utiliser), `--scale 1.5`.
+- **Clic droit sur l'animal** : le menu. Onglets *État* (jauges, nom, soins), *Actions*, *Sortir*, *Animal* (race, pelage, nouvel animal, charger) et *Réglages* (taille et volume en curseurs, qualité, écran, mise à jour).
+- **Clic gauche maintenu** : tu l'attrapes. Il n'aime pas trop, mais il ne dira rien.
+- **Double-clic** : saut périlleux.
+- **Secouer la souris** : lance une course-poursuite. Le furet considère ça comme une déclaration de guerre.
+- **Clic sur le panier** : sort un jouet. **Clic droit sur le panier** : proies, balle, boîte en carton.
+- Il saute de fenêtre en fenêtre, grimpe sur leurs bords et se cache derrière celle du dessus. Comme un vrai.
+- Il disparaît tout seul quand tu lances un jeu ou une vidéo en plein écran. Il a du savoir-vivre.
 
-## Lancer depuis les sources
+## Pour les développeurs (et les curieux)
 
-Python 3.10+ sous Windows, aucune dépendance (tkinter est fourni avec Python).
-
-```
-python araignee.py --animal ferret
-```
-
-`lancer_araignee.bat` / `arreter_araignee.bat` démarrent et arrêtent le programme.
-
-## Fabriquer l'exe soi-même
+Python 3.10+ sous Windows. Pillow sert à lisser le dessin (sans lui ça marche, avec des bords en escalier) :
 
 ```
-pip install pyinstaller
+pip install pillow
+python araignee.py
+```
+
+Options : `--animal spider|cat|dog|goat|ferret`, `--monitor 2`, `--scale 1.5`, `--direct` (sans le menu de lancement).
+
+Fabriquer l'exe soi-même :
+
+```
+pip install pyinstaller pillow
 construire_exe.bat
 ```
 
-Le fichier est produit dans `dist\AraigneeBureau.exe`.
+Le fichier sort dans `dist\AraigneeBureau.exe`. Aucun animal n'a été maltraité pendant la compilation.
