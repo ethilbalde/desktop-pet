@@ -5681,7 +5681,15 @@ class Updater:
             self.msg = 'v%s prete : redemarrage...' % tag.lstrip('vV')
             self.ready = dest
         except Exception as e:
-            self.msg = 'Echec : %s' % str(e)[:40]
+            code = getattr(e, 'code', None)
+            if code == 404:
+                self.msg = 'GitHub injoignable (page introuvable)'
+            elif code in (403, 429):
+                self.msg = 'GitHub limite les demandes, reessaie plus tard'
+            elif isinstance(e, (OSError, getattr(__import__('urllib.error').error, 'URLError', OSError))):
+                self.msg = 'Pas de connexion a GitHub'
+            else:
+                self.msg = 'Echec : %s' % str(e)[:40]
             try:
                 if self.exe_path and not self.ready and os.path.exists(self.exe_path + '.new'):
                     os.remove(self.exe_path + '.new')           # telechargement coupe : on ne garde pas un exe a moitie
@@ -5953,6 +5961,7 @@ class CatPet:
 
     def go_idle(self, secs, pose=None):
         self.then = None
+        self.cat.paw = 0.0
         self.idle_view = random.choices(['side', 'front', '3q', 'back'], [0.38, 0.32, 0.2, 0.1])[0]
         self.set_state('idle')
         self.idle_for = secs
@@ -6249,6 +6258,7 @@ class CatPet:
                     self.save_config()
                 self.bk_press = None
         self.update_hand_toy(btn)
+        self.pointer_sense(dt, pressed and not consumed and not hover and not self.hover_bk and self.hover_toy is None)
         self.bk.update(dt)
         if self.paused:
             self.vx = 0.0
@@ -6433,6 +6443,99 @@ class CatPet:
             self.decide_trait()
         self.check_defend()
 
+    CALM = ('idle', 'walk', 'loaf', 'groom', 'stretch', 'follow')
+
+    def pointer_sense(self, dt, click_near):
+        """Ce que fait le pointeur, et comment il reagit :
+        - clic pres de lui (pas dessus) : il bondit sur l'endroit du clic ;
+        - pointeur qui tourne en rond autour de lui : il le suit des yeux... et a le tournis ;
+        - pointeur qui passe vite tout pres : il sursaute (le timide s'enfuit, le colerique se fache) ;
+        - pointeur immobile juste au-dessus de sa tete : il tente de l'attraper d'un coup de patte ;
+        - longue caresse : il s'endort de bonheur.
+        Son caractere change la frequence (joueur, curieux, timide, paresseux...)."""
+        ct, u, L = self.cat, self.u, self.life
+        st = self.state
+        if self.paused or self.menu_open or L.egg_t is not None:
+            return
+        has = L.has
+        hx, hy = ct.x, ct.y - 30 * u
+        dx, dy = self.cur[0] - hx, self.cur[1] - hy
+        dist = math.hypot(dx, dy)
+        calm = st in self.CALM and ct.pkey is not None and self.now > getattr(self, 'ptr_ok', 0.0)
+
+        # 1) le pointeur tourne autour de lui
+        cdx, cdy = self.cur[0] - ct.x, self.cur[1] - (ct.y - 70 * u)      # centre un peu au-dessus de lui (il est souvent au ras du sol)
+        cd = math.hypot(cdx, cdy)
+        a = math.atan2(cdy, cdx)
+        pa = getattr(self, 'ptr_ang', a)
+        da = (a - pa + PI) % (2 * PI) - PI
+        self.ptr_ang = a
+        acc = getattr(self, "ptr_acc", 0.0) * math.exp(-dt * 0.2)
+        if 30 * u < cd < 260 * u and self.cspeed > 120:
+            acc += da
+        self.ptr_acc = acc
+        if calm and abs(acc) > 2 * PI * 1.3:
+            self.ptr_acc, self.ptr_ok = 0.0, self.now + 6
+            self.say('Ouh la la...')
+            return self.set_state('dizzy')
+
+        # 2) clic tout pres (sur le bureau ou une fenetre) : il bondit dessus
+        if click_near and calm and abs(dx) < 420 * u and -60 * u < (ct.y - self.cur[1]) < 160 * u:
+            p_ = 0.85 if has('joueur') else (0.25 if has('paresseux') else 0.55)
+            pl = self.cur_plat()
+            self.ptr_ok = self.now + 5
+            if pl is not None and random.random() < p_:
+                tx = clamp(self.cur[0], pl['x0'] + 15 * u, pl['x1'] - 15 * u)
+                if abs(tx - ct.x) > 25 * u:
+                    self.jump_to = (tx, pl['y'])
+                    self.sound('meow')
+                    return self.set_state('jump')
+
+        # 3) passage rapide tout pres : sursaut
+        if (calm and 650 < self.cspeed < 1400 and dist < 120 * u):
+            self.ptr_ok = self.now + 9
+            ct.dir = 1 if dx >= 0 else -1
+            if has('colerique'):
+                return self.set_state('defend')
+            self.set_face('wide', 1.4)
+            ct.squash = 0.5
+            self.words.append(['!', ct.x, ct.y - 80 * u, 0.0])
+            if has('timide') or random.random() < 0.25:
+                self.start_jump_random()                          # il prefere s'eloigner
+            return
+
+        # 4) pointeur immobile juste au-dessus de sa tete : coup de patte
+        over = abs(dx) < 70 * u and 8 * u < (hy - self.cur[1]) < 110 * u
+        self.ptr_hover = getattr(self, 'ptr_hover', 0.0) + dt if (over and self.cspeed < 25) else 0.0
+        if calm and self.ptr_hover > (0.7 if has('curieux') else 1.3):
+            self.ptr_hover, self.ptr_ok = 0.0, self.now + 4
+            return self.set_state('swat')
+
+        # 5) longue caresse : il s'endort de bonheur
+        if st == 'pet' and self.state_t > 8 and L.energy < 0.8 and ct.pkey is not None:
+            self.say('Ronron...')
+            self.start_sleep()
+
+    def st_swat(self, dt):
+        """Debout, la patte qui fouette l'air pour attraper le pointeur."""
+        ct, u = self.cat, self.u
+        t = self.state_t
+        self.vx = 0.0
+        ct.set_pose('stand', 10)
+        ct.dir = 1 if self.cur[0] >= ct.x else -1
+        ct.paw = max(0.0, math.sin(t * 9))
+        ct.wag = 0.6
+        ct.eyes = 'open'
+        if int(t * 1.5) != int((t - dt) * 1.5):
+            self.sound('tap')
+        hx, hy = ct.x, ct.y - 30 * u
+        gone = abs(self.cur[0] - hx) > 140 * u or (hy - self.cur[1]) > 170 * u or self.cur[1] > ct.y
+        if t > 2.4 or gone or self.cspeed > 600:
+            if self.cspeed > 600 and not gone:
+                self.say('Rate !')
+            ct.paw = 0.0
+            self.go_idle(random.uniform(1.0, 2.5), 'sit')
+
     def check_defend(self):
         ct, u = self.cat, self.u
         if (self.now > self.def_ok and self.cspeed > 1400 and abs(self.cur[0] - ct.x) < 170 * u
@@ -6572,6 +6675,20 @@ class CatPet:
         ct, u = self.cat, self.u
         ct.set_pose('hang', 8)
         ct.eyes = 'open'
+        chomp = getattr(self, 'held_chomp', 0.0)
+        if chomp > 0:                                            # il mache ce qu'il vient d'attraper
+            self.held_chomp = chomp - dt
+            ct.yawn = 0.3 + 0.3 * math.sin(chomp * 30)
+            ct.eyes = 'happy'
+        else:
+            hx, hy = ct.T(ct.P['hdx'], ct.P['hdy'])
+            for o in self.prey_list():                           # on l'approche d'une mouche, d'un papillon... : hop !
+                if isinstance(o, Toy) and o.kind not in ('fly', 'butterfly', 'mosquito', 'mouse'):
+                    continue
+                px, py = self.prey_pos(o)
+                if math.hypot(px - hx, py - hy) < 40 * u:
+                    self.held_eat(o)
+                    break
         ct.pkey = None
         self.vx = self.vy = 0.0
         ct.x = self.cur[0]
@@ -6583,6 +6700,28 @@ class CatPet:
             self.vx = clamp((self.cur[0] - self.pcur[0]) * 20, -500, 500)
             self.vy = clamp((self.cur[1] - self.pcur[1]) * 20, -600, 300)
             self.set_state('fall')
+
+    def held_eat(self, o):
+        ct, u = self.cat, self.u
+        if isinstance(o, Fly):
+            o.state = 'gone'
+            feed = o.feed * 0.9
+        else:
+            o.state = 'gone'
+            self.toys = [x for x in self.toys if x is not o]
+            feed = 0.18 if o.kind == 'mouse' else 0.08
+        self.hunger = max(0.0, self.hunger - feed)
+        if hasattr(self, 'life'):
+            self.life.joy = min(1.0, self.life.joy + 0.06)
+        self.held_chomp = 0.9
+        ct.squash = 0.4
+        hx, hy = ct.T(ct.P['hdx'], ct.P['hdy'])
+        for _ in range(5):
+            self.sparks.append([hx + random.uniform(-10, 10) * u, hy + random.uniform(-8, 8) * u,
+                                random.uniform(-40, 40), -random.uniform(20, 60), 0.0, 'star'])
+        self.hearts.append([hx, hy - 20 * u, 0.0])
+        self.sound('crunch')
+        self.say(random.choice(('Miam !', 'Chope !', 'Hop, avale !')))
 
     def start_flip(self):
         ct = self.cat
