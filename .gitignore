@@ -1,0 +1,7 @@
+araignee_config.json
+araignee_erreur.log
+*.bak
+__pycache__/
+build/
+dist/
+*.spec
