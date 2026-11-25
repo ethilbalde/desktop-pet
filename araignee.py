@@ -5615,7 +5615,7 @@ class Life:
         return 'Triste' if self.joy > 0.25 else 'Deprime'
 
 
-VERSION = '1.1.1'
+VERSION = '1.1.2'
 GITHUB_REPO = 'ethilbalde/desktop-pet'
 
 
@@ -10033,7 +10033,14 @@ def main():
 
     corner = opt('--corner', 'tr')
     if getattr(sys, 'frozen', False):                         # version .exe : reglages et journal dans %APPDATA%
-        app_dir = os.path.join(os.environ.get('APPDATA') or os.path.dirname(sys.executable), 'AraigneeBureau')
+        base_ = os.environ.get('APPDATA') or os.path.dirname(sys.executable)
+        app_dir = os.path.join(base_, 'DesktopPet')
+        old_ = os.path.join(base_, 'AraigneeBureau')            # ancien nom du dossier : on reprend son contenu une fois
+        if os.path.isdir(old_) and not os.path.exists(app_dir):
+            try:
+                shutil.copytree(old_, app_dir)
+            except Exception:
+                pass
         try:
             os.makedirs(app_dir, exist_ok=True)
         except Exception:

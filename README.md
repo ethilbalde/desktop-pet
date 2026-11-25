@@ -58,7 +58,7 @@ Chacun a plusieurs pelages, des grimaces (yeux qui louchent, cœurs dans les yeu
 
 **Mettre à jour :** *Réglages* > *Mise à jour*. Il télécharge la dernière version depuis GitHub et redémarre, **sans oublier ton animal** (âge, nom, caractère, tout est gardé).
 
-**Désinstaller (si tu en as le cœur) :** quitte le programme, supprime `DesktopPet.exe`, puis le dossier `%APPDATA%\AraigneeBureau` où vivent ses souvenirs. Il ne laisse rien d'autre sur ton PC, pas même une petite crotte.
+**Désinstaller (si tu en as le cœur) :** quitte le programme, supprime `DesktopPet.exe`, puis le dossier `%APPDATA%\DesktopPet` où vivent ses souvenirs. Il ne laisse rien d'autre sur ton PC, pas même une petite crotte.
 
 ## Mode d'emploi
 
