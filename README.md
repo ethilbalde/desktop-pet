@@ -1,5 +1,7 @@
 # Un petit animal qui vit sur ton écran
 
+> **Tu t'ennuies au bureau ?** Voici un petit animal pour te faire passer le temps.
+
 > **Avertissement :** ce logiciel ne sert à rien. Il fait ça très bien.
 
 Tu as un rapport à rendre ? Parfait. Il a justement besoin d'attention.
