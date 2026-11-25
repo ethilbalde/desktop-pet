@@ -5615,7 +5615,7 @@ class Life:
         return 'Triste' if self.joy > 0.25 else 'Deprime'
 
 
-VERSION = '1.1.0'
+VERSION = '1.1.1'
 GITHUB_REPO = 'ethilbalde/desktop-pet'
 
 
@@ -8127,7 +8127,13 @@ class CatPet:
         btn = bool(self.getbtn())
         pressed = btn and not self.btn_prev
         self.btn_prev = btn
-        hit = abs(self.cur[0] - ct.x) < 17 * u and ct.y - 40 * u < self.cur[1] < ct.y + 4 * u
+        if not getattr(self, 'egg_in', False):                   # premiere image : l'oeuf tombe au milieu de l'ecran
+            self.egg_in, self.egg_t0 = True, self.now
+            ct.x = (l_ + r_) / 2
+            self.sound('pop')
+        k = clamp((self.now - self.egg_t0) / 0.7, 0.0, 1.0)
+        self.egg_yoff = -(1 - k) ** 2 * 420 * u + (math.sin(k * PI * 3) * 14 * u * (1 - k) if k < 1 else 0.0)
+        hit = abs(self.cur[0] - ct.x) < 23 * u and ct.y - 54 * u < self.cur[1] < ct.y + 4 * u
         self.interactive = hit
         if pressed and hit:
             L.egg_t -= 4.0                                       # un petit coup l'aide a eclore
@@ -8152,7 +8158,9 @@ class CatPet:
             self.life_save()
 
     def draw_egg(self, c):
-        ct, u, L = self.cat, self.u, self.life
+        ct, L = self.cat, self.life
+        u = self.u * 1.3                                         # un oeuf bien visible
+        oy = getattr(self, 'egg_yoff', 0.0)
         co = DOG_COATS.get(ct.coat) or GOAT_COATS.get(ct.coat) or FERRET_COATS.get(ct.coat) or COATS.get(ct.coat) or {}
         spot = co.get('dark', '#b98a5a')
         prog = clamp(1.0 - L.egg_t / L.EGG_TIME, 0.0, 1.0)
@@ -8161,7 +8169,7 @@ class CatPet:
         rx, ry = 13 * u, 18 * u
 
         def tr(x, y):                                            # (x, y) relatifs au bas de l'oeuf, pivot au sol
-            return ct.x + x * cw - y * sw, ct.y + x * sw + y * cw
+            return ct.x + x * cw - y * sw, ct.y + oy + x * sw + y * cw
         c.create_oval(ct.x - 11 * u, ct.y - 2 * u, ct.x + 11 * u, ct.y + 2 * u, fill='#6a6a78', outline='')
         pts = []
         for q in range(28):
@@ -8174,8 +8182,12 @@ class CatPet:
         if prog > 0.45:                                          # fissures
             zz = [tr(-9 * u, -16 * u), tr(-5 * u, -19 * u), tr(-2 * u, -15 * u), tr(2 * u, -19 * u), tr(5 * u, -15 * u), tr(9 * u, -18 * u)]
             c.create_line([v for p in zz for v in p], fill='#5a4a3a', width=max(1, int(1.4 * u)))
-        if self.interactive:
-            c.create_text(ct.x, ct.y - 36 * u, text='clique pour l aider', fill='#ffffff', font=('Segoe UI', -int(11 * self.s), 'bold'))
+        age = self.now - getattr(self, 'egg_t0', self.now)
+        if self.interactive or 0.8 < age < 14 or (age % 25) < 4:  # au debut, puis de temps en temps : on le remarque
+            txt = 'Clique sur moi pour m aider a eclore !' if not self.interactive else 'Encore !'
+            fs = -int(12 * self.s)
+            for dx, dy, col in ((1, 1, '#000000'), (0, 0, '#ffffff')):
+                c.create_text(ct.x + dx, ct.y + oy - 44 * u + dy, text=txt, fill=col, font=('Segoe UI', fs, 'bold'))
 
     def mood_bar(self, v):
         n = int(round(clamp(v, 0.0, 1.0) * 8))
@@ -9968,7 +9980,7 @@ def run_launcher(cfg):
         lr.withdraw()
     except Exception:
         return False
-    kind_now = str(cfg.get('animal', 'spider'))
+    kind_now = str(cfg.get('animal') or 'cat')
     life_kind = cfg.get('life_kind') if cfg.get('life_kind') in MAMMALS else (kind_now if kind_now in MAMMALS else 'cat')
     coats = {k: cfg.get(coat_table(k)[1]) for k in ANIMALS}
     life_d = cfg.get('life') if isinstance(cfg.get('life'), dict) else None
