@@ -4,6 +4,25 @@ Un compagnon animé qui se promène sur ton bureau Windows, par-dessus tes fenê
 
 **Animaux :** araignée, chat, chien, chèvre naine, furet — chacun avec ses robes, ses comportements et ses sons.
 
+## Le bug de ce projet : avoir un animal de compagnie
+
+**Statut :** connu, reproductible à 100 %, ne sera pas corrigé (c'est la fonctionnalité).
+
+**Symptômes**
+- Tu commences à travailler, et dix minutes plus tard tu regardes une chèvre naine sauter de fenêtre en fenêtre.
+- Tu secoues la souris « pour voir » : le furet part à tes trousses, le chien aboie, le chat te juge.
+- Il se cache derrière ta fenêtre juste quand tu veux la déplacer, et s'endort sur celle que tu voulais fermer.
+- Tu te surprends à poser la gamelle « parce qu'il a peut-être faim ».
+- Tu dis « pas maintenant » à un animal qui n'existe pas.
+
+**Cause :** un animal de compagnie, même en pixels, demande de l'attention, des caresses et un peu de nourriture. La documentation officielle n'a pas trouvé d'autre explication.
+
+**Contournement :** clic droit > *Pause* (il arrête de bouger, il t'attend) ou *Quitter*. Fonctionne jusqu'au prochain lancement.
+
+**Correctif définitif :** aucun connu. Les tentatives de désinstallation provoquent surtout de la culpabilité.
+
+*Les vrais bugs (un animal coincé, un plantage...) sont les bienvenus dans l'onglet **Issues**.*
+
 ## Installation (la plus simple)
 
 1. Va dans l'onglet **Releases** du dépôt et télécharge `AraigneeBureau.exe`.
