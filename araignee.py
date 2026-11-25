@@ -4271,6 +4271,8 @@ class Cat:
         self.cl = []              # pattes en escalade : [x, y, posee, t, x0]
         self.plant_n = 0
         self.pull = 0.0
+        self.climb_ph = 0.0       # phase du cycle d'escalade (0 = ramasse, 0.05-0.5 = poussee, 0.5-1 = les pattes arriere remontent)
+        self.climb_scr = 0.0      # > 0 : il se hisse au sommet en pedalant des pattes arriere
         self._ly = None
         self.gal = 0.0            # poids du galop (0 = marche, 1 = galop complet)
         self.gph = 0.0            # phase du galop
@@ -4299,40 +4301,81 @@ class Cat:
     FRONT_KF = [(0.00, (25, -6)), (0.12, (19, 0)), (0.42, (1, 0)), (0.54, (0, -9)), (0.76, (13, -11)), (1.0, (25, -6))]
     HIND_KF = [(0.00, (-27, -5)), (0.28, (-14, -12)), (0.52, (-3, -1)), (0.58, (-3, 0)), (0.92, (-25, 0)), (1.0, (-27, -5))]
 
+    CLIMB_STEP = 22.0             # ce que le corps monte a chaque bond (unites locales)
+
+    @staticmethod
+    def climb_rise(ph):
+        """Avancee du corps dans le cycle : il ne monte que pendant la poussee (0.05 -> 0.5)."""
+        k = clamp((ph - 0.05) / 0.45, 0.0, 1.0)
+        return k * k * (3 - 2 * k)
+
     def climb_params(self, dt):
-        """Grimpe pour de vrai : chaque patte s'accroche au mur et y reste (le corps monte devant elle),
-        puis se detache, se tend vers le haut et se reaccroche. Les pattes avant tirent, les arriere poussent."""
+        """Grimpe comme un chat dans un arbre, par bonds :
+        - poussee : les deux pattes arriere, plantees, poussent ensemble ; le corps s'etire vers le haut
+          et les pattes avant lachent pour aller s'accrocher plus haut ;
+        - ramasse : les griffes avant tiennent, les pattes arriere remontent sous le ventre, le dos s'arrondit ;
+        - la queue balance pour l'equilibre ; au sommet, les pattes arriere pedalent pour se hisser."""
         S = self.poses['stand']
         sxc, hxc = S['sx'], S['hx']
-        fwd = (sxc + 17, sxc + 17, hxc + 10, hxc + 10)
-        rear = (sxc - 6, sxc - 6, hxc - 12, hxc - 12)
-        if not self._cl_on:
-            self._cl_on = True
-            self._ly = self.y
-            self.cl = [[sxc + 14, 0.0, 1, 0.0, 0.0], [sxc + 1, 0.0, 1, 0.0, 0.0], [hxc + 8, 0.0, 1, 0.0, 0.0], [hxc - 5, 0.0, 1, 0.0, 0.0]]
-        dy = clamp((self._ly - self.y) / self.u, 0.0, 12.0)
-        self._ly = self.y
-        for i, l in enumerate(self.cl):
-            if l[2]:
-                l[0] = max(l[0] - dy, rear[i] - 8)
-                if l[0] < rear[i] and self.cl[i ^ 1][2]:
-                    l[2], l[3], l[4] = 0, 0.0, l[0]
-            else:
-                l[3] += dt * 8.0
-                k = min(1.0, l[3])
-                e = k * k * (3 - 2 * k)
-                l[0] = l[4] + (fwd[i] - l[4]) * e
-                l[1] = -7.0 * math.sin(PI * k)
-                if k >= 1.0:
-                    l[2], l[1] = 1, 0.0
+        St = self.CLIMB_STEP
+        F0, H0 = sxc + 11, hxc + 9                     # ou se plantent les pattes avant / arriere (coordonnees locales)
+        ph = self.climb_ph % 1.0
+        feet = []
+        planted = []
+        for i in range(4):
+            q = (ph - (0.04 if i % 2 else 0.0)) % 1.0   # une patte de chaque paire suit l'autre de pres
+            Y = St * self.climb_rise(q)
+            if i < 2:                                   # pattes avant : volent pendant la poussee
+                if 0.05 <= q < 0.5:
+                    k = (q - 0.05) / 0.45
+                    e = k * k * (3 - 2 * k)
+                    wx = F0 + St * e + 7 * math.sin(PI * k)        # va chercher plus haut (un peu au-dela)
+                    lx, ly = wx - Y, -8.0 * math.sin(PI * k)
+                    planted.append(0)
+                else:
+                    lx, ly = F0, 0.0
+                    planted.append(1)
+            else:                                       # pattes arriere : plantees pendant la poussee, puis remontent
+                if q < 0.5:
+                    lx, ly = H0 - Y, 0.0
+                    planted.append(1)
+                elif q < 0.9:
+                    k = (q - 0.5) / 0.4
+                    e = k * k * (3 - 2 * k)
+                    lx, ly = H0 - St + St * e, -6.0 * math.sin(PI * k)
+                    planted.append(0)
+                else:
+                    lx, ly = H0, 0.0
+                    planted.append(1)
+            feet.append([lx, ly])
+        if self.climb_scr > 0:                          # en haut : les pattes avant tiennent le rebord, l'arriere pedale
+            w = self.climb_scr
+            for i in (2, 3):
+                a = self.paw_ph * 2.6 + (0 if i == 2 else PI)
+                feet[i][0] += (H0 - 6 + 7 * math.sin(a) - feet[i][0]) * w
+                feet[i][1] += (-4 + 4 * math.cos(a) - feet[i][1]) * w
+            for i in (0, 1):
+                feet[i][0] += (F0 + 5 - feet[i][0]) * w
+                feet[i][1] += (-3 - feet[i][1]) * w
+        # griffes qui s'agrippent : compte les pattes qui se reposent
+        pl = getattr(self, '_cl_planted', None)
+        if pl is not None:
+            for a, b in zip(pl, planted):
+                if b and not a:
                     self.plant_n += 1
-        self.pull = (self.cl[0][2] + self.cl[1][2]) / 2.0
-        f = clamp(((self.cl[0][0] + self.cl[1][0]) / 2 - (sxc - 6)) / 23.0, 0.0, 1.0)
-        g = clamp(((self.cl[2][0] + self.cl[3][0]) / 2 - (hxc - 12)) / 22.0, 0.0, 1.0)
+        self._cl_planted = planted
+        self.pull = (planted[0] + planted[1]) / 2.0
+        # etirement : maximal en fin de poussee, ramasse (dos rond) quand les pattes arriere sont remontees
+        if ph < 0.5:
+            ext = self.climb_rise(ph)
+        else:
+            k = (ph - 0.5) / 0.5
+            ext = 1 - k * k * (3 - 2 * k)
         syc = min(S['sy'], -15.0) - 2.0
-        C = dict(sx=sxc + 4 * f, sy=syc, hx=hxc - 3 * (1 - g), hy=syc, hdx=S['hdx'] + 4 * f, hdy=S['hdy'] - 2 * f, ta=3.05, curl=0.12,
-                 amp=0.2, bl=1.0 + 0.1 * f, bt=S['bt'] * 0.95, arc=3.0 * (1 - f), gait=0.0)
-        C['feet'] = [(l[0], l[1]) for l in self.cl]
+        C = dict(sx=sxc + 3 + 2 * ext, sy=syc, hx=hxc + 5 - 7 * ext, hy=syc + 1.5 * (1 - ext),
+                 hdx=S['hdx'] + 4 + 2 * ext, hdy=S['hdy'] - 2, ta=3.05 + 0.32 * math.sin(2 * PI * ph), curl=0.15,
+                 amp=0.25, bl=1.0 + 0.13 * ext, bt=S['bt'] * 0.95, arc=5.5 * (1 - ext) - 1.0 * ext, gait=0.0)
+        C['feet'] = [tuple(f) for f in feet]
         return C
 
     def gallop_params(self, phi):
@@ -5992,6 +6035,7 @@ class CatPet:
             self.edge_pose = False
         if name != 'climb':
             ct.climbing = False
+            ct.climb_scr = 0.0
         if name not in ('rim', 'rim_go', 'jump', 'climb_go', 'climb', 'fall'):
             self.rim = None
         ct.scratching = (name == 'scratch')
@@ -7470,12 +7514,16 @@ class CatPet:
             self.go_idle(0.5)
 
     def st_climb(self, dt):
+        """Grimpe a la fenetre comme un chat grimpe a un arbre : s'accroupit, bondit haut sur le bord,
+        monte par bonds (les pattes arriere poussent, les pattes avant vont s'agripper plus haut),
+        glisse parfois un peu, puis se hisse par-dessus le rebord en pedalant des pattes arriere."""
         ct, u = self.cat, self.u
         c = self.climb
         w = self.win_by.get(c['hw'])
-        if w is None:                                              # la fenêtre a disparu : il tombe
+        if w is None:                                              # la fenetre a disparu : il tombe
             ct.spin = 0.0
             ct.climbing = False
+            ct.climb_scr = 0.0
             ct.pkey = None
             self.vx = self.vy = 0.0
             return self.set_state('fall')
@@ -7488,42 +7536,81 @@ class CatPet:
         ct.pkey = None
         self.vx = self.vy = 0.0
         t = self.state_t
-        if self.sub == 'a':                                        # s'accroupit face à l'« arbre »
+        zoom = self.then_climb == 'zoom'
+        if self.sub == 'a':                                        # s'accroupit face a l'« arbre », l'arriere-train qui frétille
             ct.set_pose('crouch', 14)
-            ct.wag = 0.5
-            if t > 0.3:
+            ct.wag = 0.7
+            ct.x += math.sin(t * 40) * 0.25 * u * (t > 0.25)
+            if t > (0.25 if zoom else 0.5):
                 self.sub, self.sub_t = 'a2', self.now
                 c['x0'], c['y0'] = ct.x, ct.y
-        elif self.sub == 'a2':                                     # bond : il s'accroche au bord, griffes dehors
-            k = clamp((self.now - self.sub_t) / 0.34, 0.0, 1.0)
+        elif self.sub == 'a2':                                     # grand bond : il atterrit haut sur le bord, toutes griffes dehors
+            k = clamp((self.now - self.sub_t) / 0.38, 0.0, 1.0)
+            e = k * k * (3 - 2 * k)
             ct.set_pose('pounce', 16)
-            ct.x = c['x0'] + (xw - c['x0']) * k
-            ct.y = c['y0'] - 34 * u * k - 22 * u * math.sin(PI * k)
-            ct.spin = -PI / 2 * (k * k * (3 - 2 * k))
+            hj = min(70 * u, max(20 * u, c['y0'] - (wt + 60 * u)))   # hauteur du bond (jamais au-dessus du sommet)
+            ct.x = c['x0'] + (xw - c['x0']) * e
+            ct.y = c['y0'] - hj * e - 26 * u * math.sin(PI * k)
+            ct.spin = -PI / 2 * e
             if k >= 1.0:
                 self.sub = 'b'
+                ct.climb_ph = 0.5                                  # griffes avant plantees, l'arriere remonte
+                ct.climb_scr = 0.0
+                c['yb'] = ct.y                                     # position du corps au debut du cycle
+                c['slip'] = 0.0
+                ct.squash = 0.35
                 self.sound('tap')
-                self.chips(4)
-        elif self.sub == 'b':                                      # grimpe en tirant avec les pattes avant, par à-coups
+                self.chips(5)
+        elif self.sub == 'b':                                      # montee par bonds
             ct.set_pose('stand', 10)
             ct.climbing = True
             ct.x = xw
-            ct.spin = -PI / 2
-            self.climb_v = (230 if self.then_climb == 'zoom' else 120) * (u / 1.75) * (0.55 + 0.45 * ct.pull)   # il se hisse quand les pattes avant tiennent
-            ct.y -= self.climb_v * dt
-            if ct.plant_n != getattr(self, 'prev_plant', 0):       # les griffes s'agrippent : eclats d'ecorce
+            ct.spin = -PI / 2 + 0.05 * math.sin(ct.climb_ph * 2 * PI)   # le corps tangue un peu a chaque bond
+            period = 0.42 if zoom else 0.68
+            if getattr(self, 'life', None) is not None and self.life.has('paresseux'):
+                period *= 1.25
+            ph0 = ct.climb_ph
+            ct.climb_ph += dt / period
+            if int(ct.climb_ph) != int(ph0):                       # nouveau cycle : le corps repart de plus haut
+                c['yb'] -= ct.CLIMB_STEP * u
+                if not zoom and random.random() < 0.12:            # petite glissade : les griffes lachent un instant
+                    c['slip'] = 1.0
+                    self.sound('tap')
+                    self.chips(6)
+                    if random.random() < 0.5:
+                        self.say(random.choice(('Oups !', 'Hop hop !')))
+            ph = ct.climb_ph % 1.0
+            c['slip'] = max(0.0, c.get('slip', 0.0) - dt * 2.2)
+            sl = c['slip']
+            drop = 9 * u * math.sin(PI * sl) if sl > 0 else 0.0   # il glisse, puis se rattrape
+            ct.y = c['yb'] - ct.CLIMB_STEP * u * ct.climb_rise(ph) + drop
+            if ct.plant_n != getattr(self, 'prev_plant', 0):       # les griffes s'agrippent : eclats
                 self.chips(2)
             self.prev_plant = ct.plant_n
-            if ct.y <= wt + 40 * u:
+            ct.wag = 0.3
+            if ct.y <= wt + 34 * u and ph >= 0.5:                  # les pattes avant atteignent le rebord
                 self.sub, self.sub_t = 'c', self.now
                 c['x0'], c['y0'] = ct.x, ct.y
+        elif self.sub == 'c':                                      # se hisse : pattes avant sur le rebord, l'arriere pedale
+            k = clamp((self.now - self.sub_t) / 0.45, 0.0, 1.0)
+            ct.climbing = True
+            ct.climb_scr = min(1.0, k * 4)
+            ct.x = xw
+            ct.spin = -PI / 2
+            ct.y = c['y0'] - 12 * u * k + math.sin(k * 30) * 0.6 * u
+            if int(k * 6) != int(clamp((self.now - dt - self.sub_t) / 0.45, 0.0, 1.0) * 6):
+                self.chips(1)
+            if k >= 1.0:
+                self.sub, self.sub_t = 'd', self.now
+                c['x0'], c['y0'] = ct.x, ct.y
                 ct.climbing = False
-        else:                                                      # se hisse par-dessus le rebord
-            k = clamp((self.now - self.sub_t) / 0.5, 0.0, 1.0)
+                ct.climb_scr = 0.0
+        else:                                                      # bascule par-dessus le rebord
+            k = clamp((self.now - self.sub_t) / 0.4, 0.0, 1.0)
             tx = wl + 34 * u if side < 0 else wr - 34 * u
             ct.set_pose('air', 12)
             ct.x = c['x0'] + (tx - c['x0']) * k
-            ct.y = c['y0'] + (wt - c['y0']) * k - 14 * u * math.sin(PI * k)
+            ct.y = c['y0'] + (wt - c['y0']) * k - 12 * u * math.sin(PI * k)
             ct.spin = -PI / 2 * (1 - k * k * (3 - 2 * k))
             if k >= 1.0:
                 ct.spin = 0.0
@@ -7543,6 +7630,8 @@ class CatPet:
                     if nxt == 'zoom' and self.now < self.zoom_end:
                         self.zjump = self.now
                         return self.set_state('zoom')               # la course folle continue en haut
+                    if random.random() < 0.5:
+                        self.say(random.choice(('Ta-da !', 'Facile.', 'Je suis le roi !')))
                     return self.go_idle(random.uniform(2, 4), 'sit')
                 self.vy = 0.0
                 self.set_state('fall')
