@@ -63,12 +63,27 @@ Chacun a plusieurs pelages, des grimaces (yeux qui louchent, cœurs dans les yeu
 ## Mode d'emploi
 
 - **Clic droit sur l'animal** : le menu. Onglets *État* (jauges, nom, soins), *Actions*, *Sortir*, *Animal* (race, pelage, nouvel animal, charger) et *Réglages* (taille et volume en curseurs, qualité, écran, mise à jour).
-- **Clic gauche maintenu** : tu l'attrapes. Il n'aime pas trop, mais il ne dira rien.
-- **Double-clic** : saut périlleux.
-- **Secouer la souris** : lance une course-poursuite. Le furet considère ça comme une déclaration de guerre.
 - **Clic sur le panier** : sort un jouet. **Clic droit sur le panier** : proies, balle, boîte en carton.
-- Il saute de fenêtre en fenêtre, grimpe sur leurs bords et se cache derrière celle du dessus. Comme un vrai.
 - Il disparaît tout seul quand tu lances un jeu ou une vidéo en plein écran. Il a du savoir-vivre.
+
+## Tout ce que tu peux faire avec ta souris (au lieu de travailler)
+
+| Ce que tu fais | Ce qu'il fait |
+|---|---|
+| **Passer doucement la souris sur lui** | Il se laisse caresser, ronronne et envoie des cœurs. Longtemps caressé quand il est fatigué, il s'endort de bonheur. |
+| **Gratouilles** : allers-retours rapides de la souris sur lui | Il se roule sur le dos, pattes en l'air, et pédale de joie. Arrête, il se relève. Recommence, il se rallonge. |
+| **Laisser la souris immobile au-dessus de lui** | Coups de patte sur le pointeur ! Il se dresse sur deux pattes si c'est haut, s'aplatit si c'est au ras du sol, et vise juste. Fuis vite : « Raté ! ». |
+| **Cliquer près de lui** (pas dessus) | Il bondit à l'endroit du clic. Le joueur à tous les coups, le paresseux… s'il a le temps. |
+| **Tourner en rond autour de lui** | Il te suit des yeux… jusqu'au tournis. |
+| **Passer très vite tout près de lui** | Sursaut. Le timide s'éloigne d'un bond, le colérique se fâche. |
+| **Secouer la souris** | Course-poursuite après le pointeur. Le furet considère ça comme une déclaration de guerre. |
+| **Clic gauche maintenu** | Tu l'attrapes et tu le promènes. Il n'aime pas trop, mais il ne dira rien. |
+| **Le tenir et l'approcher d'une mouche, d'un papillon ou d'une souris** | Hop, il l'attrape au vol et la mange. « Miam ! » |
+| **Le lâcher en l'air** | Il retombe sur ses pattes. Évidemment. |
+| **Double-clic** | Saut périlleux. |
+| **Clic sur lui juste après l'éclosion** | Il te demande comment il s'appelle. |
+
+Et quand tu ne fais rien, il s'occupe tout seul : il saute de fenêtre en fenêtre, **grimpe sur leurs bords comme un chat dans un arbre** (par bonds, avec une petite glissade de temps en temps), se cache derrière celle du dessus, fait sa toilette, chasse ce qui traîne et finit par s'endormir là où tu voulais cliquer. Comme un vrai.
 
 ## Pour les développeurs (et les curieux)
 
