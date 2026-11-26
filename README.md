@@ -28,7 +28,7 @@
   <img src="docs/belly.gif" width="400" alt="Le chien se roule sur le dos quand on lui fait des gratouilles">
 </p>
 <p align="center">
-  <img src="docs/swat.gif" width="400" alt="Le chat donne des coups de patte au pointeur">
+  <img src="docs/spider_dance.gif" width="400" alt="L'araignée paon fait sa parade nuptiale devant le pointeur">
   <img src="docs/chase.gif" width="400" alt="Le furet chasse le pointeur">
 </p>
 <p align="center">
