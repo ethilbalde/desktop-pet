@@ -2,9 +2,9 @@
 
 > **Tu t'ennuies au bureau ?** Voici un petit animal pour te faire passer le temps.
 
-### [⬇️ Télécharger DesktopPet.exe](https://github.com/ethilbalde/desktop-pet/releases/latest/download/DesktopPet.exe)
+### ⬇️ Le programme se trouve dans l'onglet **Releases** de ce dépôt (à droite de la page).
 
-*Windows 10/11 · un seul fichier · rien à installer, aucune dépendance · toujours la dernière version.*
+*Windows 10/11 · un seul fichier · rien à installer, aucune dépendance.*
 
 > **Avertissement :** ce logiciel ne sert à rien. Il fait ça très bien.
 
@@ -50,7 +50,7 @@ Chacun a plusieurs pelages, des grimaces (yeux qui louchent, cœurs dans les yeu
 
 ## Installation (30 secondes, dont 25 à hésiter)
 
-1. Clique sur [**Télécharger DesktopPet.exe**](https://github.com/ethilbalde/desktop-pet/releases/latest/download/DesktopPet.exe) (ou va dans l'onglet **Releases**).
+1. Va dans l'onglet **Releases** de ce dépôt et prends `DesktopPet.exe` dans la dernière version.
 2. Double-clique dessus. C'est tout : **rien à installer, aucun Python, aucune dépendance**. Tout est dans le fichier.
    - Windows peut afficher « Windows a protégé votre ordinateur » : clique sur **Informations complémentaires**, puis **Exécuter quand même**. L'exe n'est pas signé, l'animal non plus.
 3. Choisis ton animal et son pelage dans le menu de lancement. Un œuf apparaît.
