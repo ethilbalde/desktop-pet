@@ -2,6 +2,17 @@
 
 > **Tu t'ennuies au bureau ?** Voici un petit animal pour te faire passer le temps.
 
+<p align="center">
+  <img src="docs/climb.gif" width="400" alt="Le chat grimpe sur une fenêtre">
+  <img src="docs/belly.gif" width="400" alt="Le chien se roule sur le dos quand on lui fait des gratouilles">
+</p>
+<p align="center">
+  <img src="docs/swat.gif" width="400" alt="Le chat donne des coups de patte au pointeur">
+  <img src="docs/chase.gif" width="400" alt="Le furet chasse le pointeur">
+</p>
+
+*🇬🇧 **In English:** a cute animated pet (spider, cat, dog, pygmy goat, ferret) that lives on your Windows desktop. It climbs your windows, hides behind them, chases your mouse cursor, rolls over for belly rubs, and grows up like a Tamagotchi (it never dies). One single .exe, nothing to install. Grab it from the **Releases** tab.*
+
 ### ⬇️ Le programme se trouve dans l'onglet **Releases** de ce dépôt (à droite de la page).
 
 *Windows 10/11 · un seul fichier · rien à installer, aucune dépendance.*
@@ -104,3 +115,11 @@ construire_exe.bat
 ```
 
 Le fichier sort dans `dist\DesktopPet.exe`. Aucun animal n'a été maltraité pendant la compilation.
+
+## Licence
+
+Libre et gratuit, sous licence [MIT](LICENSE).
+
+---
+
+**Il t'a fait sourire ?** Une ⭐ en haut de la page lui fait très plaisir (et il ne te jugera pas, promis… sauf le chat).
