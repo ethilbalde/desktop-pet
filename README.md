@@ -36,7 +36,11 @@
   <img src="docs/hide.gif" width="400" alt="Le chat se cache derrière une fenêtre et jette un œil">
 </p>
 
-*🇬🇧 **In English:** a cute animated pet (spider, cat, dog, pygmy goat, ferret) that lives on your Windows desktop. It climbs your windows, hides behind them, chases your mouse cursor, rolls over for belly rubs, and grows up like a Tamagotchi (it never dies). One single .exe, nothing to install. Grab it from the **Releases** tab.*
+### 🐙 Nouveau : le poulpe !
+
+Il nage par jets de fenêtre en fenêtre, se colle à leurs bords avec ses ventouses, change de couleur selon son humeur, attrape ton pointeur avec une tentacule… et lâche un nuage d'encre si tu secoues la souris. Il existe aussi en version **Dumbo**, inspirée du vrai poulpe des grands fonds : grandes nageoires en forme d'oreilles, bras reliés par une peau en parapluie, et pas d'encre du tout (il pâlit et s'enfuit en battant des oreilles).
+
+*🇬🇧 **In English:** a cute animated pet (spider, cat, dog, pygmy goat, ferret, octopus) that lives on your Windows desktop. It climbs your windows, hides behind them, chases your mouse cursor, rolls over for belly rubs, and grows up like a Tamagotchi (it never dies). One single .exe, nothing to install. Grab it from the **Releases** tab.*
 
 ### ⬇️ Le programme se trouve dans l'onglet **Releases** de ce dépôt (à droite de la page).
 
@@ -57,6 +61,7 @@ C'est un petit animal qui s'installe sur ton bureau Windows, se balade par-dessu
 | 🐶 | **Le chien** | T'aime. Beaucoup. Tout le temps. Rapporte la balle même quand tu ne l'as pas lancée. |
 | 🐐 | **La chèvre naine** | Pique des crises de folie sans prévenir, saute partout et donne des coups de tête aux fenêtres. Personne ne sait pourquoi. Elle non plus. |
 | 🦦 | **Le furet** | Va trop vite. Chasse ton curseur comme si c'était un ennemi personnel. Fait « dook-dook ». |
+| 🐙 | **Le poulpe** | Huit bras, zéro souci. Rose quand il est content, bleu quand il dort, rouge quand il est fâché, blanc quand il a peur. Chasse les crevettes, rit aux chatouilles, et te répond à l'encre si tu l'agaces. |
 
 Chacun a plusieurs pelages, des grimaces (yeux qui louchent, cœurs dans les yeux, langue tirée...) et un **caractère tiré au sort à la naissance** : gourmand, paresseux, câlin, colérique, farceur, cochon... Oui, tu peux tomber sur un furet paresseux et cochon. Non, on ne rembourse pas.
 
@@ -73,7 +78,7 @@ Chacun a plusieurs pelages, des grimaces (yeux qui louchent, cœurs dans les yeu
 *Comme pour tout animal de compagnie, lis attentivement cette notice.*
 
 - Tu commences à travailler, et dix minutes plus tard tu regardes une chèvre naine sauter de fenêtre en fenêtre.
-- Tu secoues la souris « pour voir » : le furet part à tes trousses, le chien aboie, le chat te juge.
+- Tu secoues la souris « pour voir » : le furet part à tes trousses, le chien aboie, le chat te juge, le poulpe t'envoie de l'encre.
 - Il se cache derrière ta fenêtre juste quand tu veux la déplacer, et s'endort sur celle que tu voulais fermer.
 - Tu poses la gamelle « parce qu'il a peut-être faim ».
 - Tu lui dis « pas maintenant ». Il s'en fiche.
@@ -117,6 +122,7 @@ Chacun a plusieurs pelages, des grimaces (yeux qui louchent, cœurs dans les yeu
 | **Le tenir et l'approcher d'une mouche, d'un papillon ou d'une souris** | Hop, il l'attrape au vol et la mange. « Miam ! » |
 | **Le lâcher en l'air** | Il retombe sur ses pattes. Évidemment. |
 | **Double-clic** | Saut périlleux. |
+| **Avec le poulpe** | Caresse : il attrape ton pointeur avec une tentacule. Gratouilles : il se tortille de rire. Souris secouée près de lui : nuage d'encre et il file (le Dumbo, lui, pâlit et s'enfuit). |
 | **Clic sur lui juste après l'éclosion** | Il te demande comment il s'appelle. |
 
 Et quand tu ne fais rien, il s'occupe tout seul : il saute de fenêtre en fenêtre, **grimpe sur leurs bords comme un chat dans un arbre** (par bonds, avec une petite glissade de temps en temps), se cache derrière celle du dessus, fait sa toilette, chasse ce qui traîne et finit par s'endormir là où tu voulais cliquer. Comme un vrai.
@@ -130,7 +136,7 @@ pip install pillow
 python araignee.py
 ```
 
-Options : `--animal spider|cat|dog|goat|ferret`, `--monitor 2`, `--scale 1.5`, `--direct` (sans le menu de lancement).
+Options : `--animal spider|cat|dog|goat|ferret|octopus`, `--monitor 2`, `--scale 1.5`, `--direct` (sans le menu de lancement).
 
 Fabriquer l'exe soi-même :
 

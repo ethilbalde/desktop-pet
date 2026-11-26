@@ -181,11 +181,14 @@ class Sound:
         # --- furet
         'dook': (880, 720, 0.05, 'tone', 0.38, 'pluck', dict(h=((1, 1), (2, 0.15)), pulses=3, gap=0.05, notes=(1, 1.06, 1.12), k=3)),
         'dook_s': (800, 720, 0.045, 'tone', 0.22, 'pluck', dict(pulses=2, gap=0.06, k=3)),
+        # --- poulpe
+        'bloop': (300, 560, 0.10, 'tone', 0.36, 'pluck', dict(h=((1, 1), (2, 0.15)), arc=True, k=4)),      # « bloup ! » (jet)
+        'blub': (420, 520, 0.05, 'tone', 0.22, 'pluck', dict(pulses=3, gap=0.04, notes=(1, 1.19, 1.41), k=4)),   # « blub blub »
     }
     # un meme son ne revient pas avant ce delai (secondes) : rien ne tourne en boucle ni ne devient agacant
     COOLDOWN = {'tap': 0.4, 'pop': 0.4, 'ding': 0.8, 'clink': 1.0, 'boing': 2.0, 'buzz': 6.0, 'chirp': 4.0, 'crunch': 1.5,
                 'hiss': 3.0, 'meow': 8.0, 'purr': 5.0, 'snore': 7.0, 'woof': 7.0, 'pant': 5.0, 'bleat': 9.0, 'bleat_s': 6.0,
-                'dook': 7.0, 'dook_s': 5.0}
+                'dook': 7.0, 'dook_s': 5.0, 'bloop': 2.5, 'blub': 4.0}
     RANGE_DB = 36.0                       # 100 % -> 10 % = -32 dB environ
 
     def __init__(self):
@@ -489,8 +492,8 @@ CUTE_PAL = {
 }
 
 
-ANIMALS = {'spider': 'Araignee', 'cat': 'Chat', 'dog': 'Chien', 'goat': 'Chevre naine', 'ferret': 'Furet'}
-ANIMALS_READY = {'spider', 'cat', 'dog', 'goat', 'ferret'}                 # les autres sont affichés mais grisés tant qu'ils ne sont pas faits
+ANIMALS = {'spider': 'Araignee', 'cat': 'Chat', 'dog': 'Chien', 'goat': 'Chevre naine', 'ferret': 'Furet', 'octopus': 'Poulpe'}
+ANIMALS_READY = {'spider', 'cat', 'dog', 'goat', 'ferret', 'octopus'}                # les autres sont affichés mais grisés tant qu'ils ne sont pas faits
 
 
 def next_species(sp_name):
@@ -5197,7 +5200,7 @@ class Toy:
             return
         u = self.u
         k = u / 1.75
-        if self.kind == 'mouse' and self.pkey is not None:
+        if self.kind in ('mouse', 'shrimp') and self.pkey is not None:
             cat = pet.cat
             dcat = abs(cat.x - self.x) if abs(cat.y - self.y) < 60 * u else 1e9
             danger = pet.state in ('stalk', 'chase') and dcat < 160 * u
@@ -6395,9 +6398,12 @@ class CatPet:
             if sk[4] > 0:
                 if sk[5] == 'chip':
                     sk[3] += 700 * dt
+                elif sk[5] == 'ink':                                  # l'encre ralentit et s'etale
+                    sk[2] *= max(0.0, 1 - dt * 2.5)
+                    sk[3] *= max(0.0, 1 - dt * 2.5)
                 sk[0] += sk[2] * dt
                 sk[1] += sk[3] * dt
-        self.sparks = [sk for sk in self.sparks if sk[4] < (0.8 if sk[5] == 'chip' else 1.3)]
+        self.sparks = [sk for sk in self.sparks if sk[4] < (0.8 if sk[5] == 'chip' else (2.4 if sk[5] == 'ink' else 1.3))]
         if ct.cute and grounded and abs(self.vx) > 60 * s and random.random() < dt * 5:
             self.sparks.append([ct.x - ct.dir * 20 * u, ct.y - 18 * u, random.uniform(-6, 6) * s, -14 * s, 0.0, 'star'])
 
@@ -6913,7 +6919,7 @@ class CatPet:
         else:
             hx, hy = ct.T(ct.P['hdx'], ct.P['hdy'])
             for o in self.prey_list():                           # on l'approche d'une mouche, d'un papillon... : hop !
-                if isinstance(o, Toy) and o.kind not in ('fly', 'butterfly', 'mosquito', 'mouse'):
+                if isinstance(o, Toy) and o.kind not in ('fly', 'butterfly', 'mosquito', 'mouse', 'shrimp'):
                     continue
                 px, py = self.prey_pos(o)
                 if math.hypot(px - hx, py - hy) < 40 * u:
@@ -6939,7 +6945,7 @@ class CatPet:
         else:
             o.state = 'gone'
             self.toys = [x for x in self.toys if x is not o]
-            feed = 0.18 if o.kind == 'mouse' else 0.08
+            feed = 0.18 if o.kind in ('mouse', 'shrimp') else 0.08
         self.hunger = max(0.0, self.hunger - feed)
         if hasattr(self, 'life'):
             self.life.joy = min(1.0, self.life.joy + 0.06)
@@ -7031,7 +7037,7 @@ class CatPet:
 
     def toy_at(self, x, y):
         for o in self.toys:
-            if o.kind in ('yarn', 'mouse') and o.state == 'live':
+            if o.kind in ('yarn', 'mouse', 'shrimp') and o.state == 'live':
                 if abs(x - o.x) < 24 * self.u and -6 * self.u < (o.y - y) < 26 * self.u:
                     return o
             elif o.kind == 'bowl' and o.state == 'live':                 # la gamelle se prend et se deplace aussi
@@ -7086,7 +7092,7 @@ class CatPet:
                 o.y = p['y']
                 nx = o.x + o.vx * dt
                 if nx < p['x0'] or nx > p['x1']:
-                    if o.kind == 'mouse':
+                    if o.kind in ('mouse', 'shrimp'):
                         o.dir = -o.dir
                         nx = clamp(nx, p['x0'], p['x1'])
                         o.vx = -o.vx
@@ -7208,7 +7214,7 @@ class CatPet:
             if isyarn and abs(d) < 44 * u and abs(ct.y - o.y) < 40 * u:
                 return self.set_state('bat')
             near = abs(d) <= (120 if not isyarn else 60) * u
-            sp_ = 235 if (isinstance(o, Toy) and o.kind == 'mouse') else 170
+            sp_ = 235 if (isinstance(o, Toy) and o.kind in ('mouse', 'shrimp')) else 170
             self.vx = ct.dir * (sp_ if not near else 110) * k if abs(d) > (110 if not isyarn else 40) * u else 0.0
             if not isyarn and abs(d) <= 135 * u and ct.y - py < 340 * k and py - ct.y < 60 * u:
                 self.sub, self.sub_t = 'b', self.now
@@ -7236,6 +7242,12 @@ class CatPet:
         if isinstance(o, Fly):
             o.state = 'gone'
             self.eat_feed = o.feed * 0.9
+            self.sound('crunch')
+            self.set_state('eat')
+        elif o.kind == 'shrimp':                                 # une crevette : avalee sur place
+            o.state = 'gone'
+            self.toys = [x for x in self.toys if x is not o]
+            self.eat_feed = 0.3
             self.sound('crunch')
             self.set_state('eat')
         elif o.kind == 'mouse':
@@ -8593,7 +8605,8 @@ class CatPet:
         ct, L = self.cat, self.life
         u = self.u * 1.3                                         # un oeuf bien visible
         oy = getattr(self, 'egg_yoff', 0.0)
-        co = DOG_COATS.get(ct.coat) or GOAT_COATS.get(ct.coat) or FERRET_COATS.get(ct.coat) or COATS.get(ct.coat) or {}
+        co = (DOG_COATS.get(ct.coat) or GOAT_COATS.get(ct.coat) or FERRET_COATS.get(ct.coat)
+              or (OCTO_COATS.get(ct.coat) if self.animal == 'octopus' else None) or COATS.get(ct.coat) or {})
         spot = co.get('dark', '#b98a5a')
         prog = clamp(1.0 - L.egg_t / L.EGG_TIME, 0.0, 1.0)
         w = math.sin(self.now * (4 + 12 * prog)) * (0.03 + 0.17 * prog) * (1.0 if int(self.now * 0.8) % 2 == 0 or prog > 0.7 else 0.0)
@@ -8749,6 +8762,8 @@ class CatPet:
                 draw_bowl(c, o.x, o.y, u, o.food)
             elif o.kind == 'mouse':
                 draw_mouse(c, o.x, o.y, u, o.dir, o.t * 12)
+            elif o.kind == 'shrimp':
+                draw_shrimp(c, o.x, o.y, u, o.dir, o.t * 9 if abs(o.vx) > 1 else 0.0)
             else:
                 draw_yarn(c, o.x, o.y, u, o.rot)
         if self.buddy is not None:
@@ -8781,6 +8796,8 @@ class CatPet:
                     (draw_bone if self.animal == 'dog' else draw_carrot)(c, bx, by, u * 0.9)
                 else:
                     draw_yarn(c, bx, by + 7 * u, u * 0.85, self.state_t * 3)
+            elif self.animal == 'octopus':                         # le poulpe reve de crevettes
+                draw_shrimp(c, bx, by + 5 * u, u * 0.95, 1 if int(self.state_t / 3) % 2 else -1, self.state_t * 5)
             elif int(self.state_t / 3) % 2 == 0:
                 draw_mouse(c, bx, by + 7 * u, u * 0.85, 1, self.state_t * 6)
             else:
@@ -8794,6 +8811,8 @@ class CatPet:
             c.create_oval(bx - 16 * u, by - 12 * u, bx + 16 * u, by + 12 * u, fill='#ffffff', outline='#777777', width=2)
             if self.animal in ('dog', 'goat'):
                 (draw_bone if self.animal == 'dog' else draw_carrot)(c, bx, by, u)
+            elif self.animal == 'octopus':
+                draw_shrimp(c, bx, by + 5 * u, u, 1, 0.0)
             else:
                 c.create_polygon(rot_ell(bx, by, 0, 0, 0, 8 * u, 4.6 * u), fill='#7ab8e8', outline='#3a78a8')
                 c.create_polygon(bx + 7 * u, by, bx + 13 * u, by - 5 * u, bx + 13 * u, by + 5 * u, fill='#7ab8e8', outline='#3a78a8')
@@ -8809,6 +8828,11 @@ class CatPet:
             if sk[4] >= 0 and sk[5] == 'chip':
                 r_ = 1.5 * self.u
                 c.create_oval(sk[0] - r_, sk[1] - r_, sk[0] + r_, sk[1] + r_ * 0.7, fill='#8a6a4a', outline='')
+            elif sk[4] >= 0 and sk[5] == 'ink':                     # nuage d'encre du poulpe
+                a_ = sk[4]
+                r_ = (4 + 9 * min(a_, 1.0)) * self.u * (1.0 - 0.75 * max(0.0, a_ - 1.6) / 0.8)
+                col = mix('#2e2944', '#9c96b8', clamp((a_ - 0.4) / 1.8, 0.0, 1.0))
+                c.create_oval(sk[0] - r_, sk[1] - r_ * 0.85, sk[0] + r_, sk[1] + r_ * 0.85, fill=col, outline='')
             elif sk[4] >= 0 and sk[5] == 'bubble':
                 r_ = (2.5 + 3 * sk[4]) * self.u
                 c.create_oval(sk[0] - r_, sk[1] - r_, sk[0] + r_, sk[1] + r_, fill='#d8f0ff', outline='#7ab8e8', width=2)
@@ -8828,13 +8852,14 @@ class CatPet:
 
 
 ACTION_ACTS = {'sleep', 'groom', 'stretch', 'zoom', 'climb', 'scratch', 'rim', 'bark', 'beg', 'dig', 'sniff', 'butt',
-               'frenzy', 'mad', 'fchase', 'dance', 'show', 'dangle', 'hide', 'wash'}
+               'frenzy', 'mad', 'fchase', 'dance', 'show', 'dangle', 'hide', 'wash', 'color', 'swim', 'ink'}
 OUT_ACTS = {'box', 'ball'}
 ANIMAL_ACTS = {'race', 'coat', 'cute', 'buddy', 'ambient', 'species', 'comp', 'dew', 'reset', 'load'}
 SETTING_ACTS = {'size+', 'size-', 'sound', 'vol+', 'vol-', 'pause', 'quit', 'monitor', 'update', 'quality', 'launcher', 'autostart'}
 OUT_ITEMS = {
     'spider': [('Une mouche', 'prey:fly'), ('Un moustique', 'prey:mosquito'), ('Un papillon', 'prey:butterfly')],
     'cat': [('Une mouche', 'prey:fly'), ('Un papillon', 'prey:butterfly'), ('Une souris', 'prey:mouse'), ('Une pelote', 'prey:yarn')],
+    'octopus': [('Une crevette', 'prey:shrimp'), ('Une mouche', 'prey:fly'), ('Un papillon', 'prey:butterfly'), ('Une pelote', 'prey:yarn')],
 }
 OUT_DEFAULT = [('Une mouche', 'prey:fly'), ('Un papillon', 'prey:butterfly'), ('Une souris', 'prey:mouse')]
 
@@ -9787,6 +9812,782 @@ class FerretPet(DogPet):
                 pass
 
 
+# ============================================================================ LE POULPE
+OCTO_COATS = {
+    'rose':   dict(name='Rose',      base='#ff9ec0', dark='#e5779f', light='#ffd6e4', ol='#8a2c52', eye='#5a3a2a', spot='#ffc2d8'),
+    'corail': dict(name='Corail',    base='#ff9370', dark='#e86c4c', light='#ffd2bf', ol='#86321c', eye='#3a2a22', spot='#ffb69c'),
+    'violet': dict(name='Violet',    base='#b996f2', dark='#946cd8', light='#e4d6ff', ol='#4a2a86', eye='#2a2240', spot='#d2bcff'),
+    'nuit':   dict(name='Bleu nuit', base='#5b7fd6', dark='#3f60b4', light='#bcd0ff', ol='#1c2a66', eye='#1a1a2e', spot='#86a4ec'),
+    'dumbo':  dict(name='Dumbo',     base='#ffc9ae', dark='#f0a888', light='#fff0e6', ol='#8a4a30', eye='#2a1e1a', spot='#ffdcc8', dumbo=True),
+}
+OCTO_ORDER = list(OCTO_COATS)
+OCTO_MOODS = {'content': '#ff6f9f', 'calme': '#6fa8ff', 'fache': '#ff4433', 'peur': '#f6f3f0'}
+# poses des tentacules : ecartement, courbure, ondulation, enroulement du bout, longueur, vitesse d'ondulation
+OCTO_POSES = {
+    'flotte':  dict(spread=0.8, bend=0.05, amp=0.2, curl=1.35, L=22, w=2.2),
+    'jet':     dict(spread=0.10, bend=0.00, amp=0.07, curl=0.15, L=31, w=6.0),
+    'plane':   dict(spread=1.45, bend=0.09, amp=0.14, curl=1.6, L=21, w=1.6),
+    'etoile':  dict(spread=2.4, bend=0.02, amp=0.10, curl=0.5, L=25, w=1.2),
+    'dort':    dict(spread=0.95, bend=0.10, amp=0.03, curl=5.2, L=19, w=0.8),
+    'rit':     dict(spread=1.2, bend=0.05, amp=0.65, curl=1.6, L=21, w=9.0),
+    'marche':  dict(spread=1.3, bend=0.03, amp=0.34, curl=1.1, L=21, w=6.5),
+    'pend':    dict(spread=0.35, bend=0.0, amp=0.22, curl=0.35, L=25, w=2.6),
+    'medusa':  dict(spread=1.1, bend=0.02, amp=0.06, curl=0.45, L=20, w=1.0),     # Dumbo qui nage : le parapluie s'ouvre et se ferme
+}
+
+
+def draw_shrimp(c, x, y, u, d=1, ph=0.0):
+    """Petite crevette posee au sol en (x, y), tournee vers d ; ph fait sautiller."""
+    s = u * 0.9
+    y -= abs(math.sin(ph)) * 2.2 * u
+    pts = []
+    for q in range(7):
+        a = PI * 0.15 + q * 0.32
+        pts.append((x + d * math.cos(a) * 9 * s, y - math.sin(a) * 7 * s))
+    for q in range(6, -1, -1):                                   # la queue d'abord, la tete par-dessus
+        px, py = pts[q]
+        r = (3.4 - q * 0.38) * s
+        c.create_oval(px - r, py - r, px + r, py + r, fill='#ff8f6a', outline='#a8402a', width=1)
+    hx, hy = pts[0]
+    c.create_line(hx, hy - 1 * s, hx + d * 9 * s, hy - 8 * s, fill='#a8402a', width=1)
+    c.create_line(hx, hy - 1 * s, hx + d * 11 * s, hy - 3 * s, fill='#a8402a', width=1)
+    c.create_oval(hx + d * 0.6 * s - 1.1 * s, hy - 2.6 * s, hx + d * 0.6 * s + 1.1 * s, hy - 0.4 * s, fill='#000000', outline='')
+
+
+class OctoBody(Cat):
+    """Corps du poulpe. Il garde l'interface du chat (un squelette invisible sert aux etats, au menu, a la vie),
+    mais se dessine en poulpe : manteau, grands yeux, 8 tentacules qui ondulent, couleur selon l'humeur."""
+    N = 10                                                       # segments par tentacule
+
+    def __init__(self, x, y, u, coat='rose'):
+        super().__init__(x, y, u, coat)
+        self.coat = coat if coat in OCTO_COATS else 'rose'
+        self.opose = 'flotte'
+        self.PP = dict(OCTO_POSES['flotte'])
+        self.wph = random.uniform(0, 10)
+        self.ot = 0.0
+        self.pulse = 0.0                                         # 1 = manteau contracte (jet)
+        self.rot = self.rot_t = 0.0                              # rotation de tout le corps (0 = tete en haut)
+        self.mood, self.mood_c, self.mood_w = None, 'content', 0.0
+        self.oeye = None
+        self.omouth = None
+        self.reach = {}                                          # tentacule -> point vise (repere local)
+        self.dry = 0.0
+        self.off = self.off_t = -14.0                            # origine du dessin par rapport a (x, y), en unites
+        self.floor = 14.0                                        # les tentacules ne passent pas sous cette ligne (repere local)
+        self.peek = False                                        # (menu de lancement) il depasse d'un rebord
+
+    # ---- repere local -> ecran
+    def origin(self):
+        return self.x, self.y + self.off * self.u
+
+    @property
+    def dumbo(self):
+        return bool(OCTO_COATS.get(self.coat, {}).get('dumbo'))
+
+    def T(self, lx, ly):
+        ox, oy = self.origin()
+        c, s = math.cos(self.rot), math.sin(self.rot)
+        sq = self.squash
+        lx *= 1 + 0.12 * sq
+        ly *= 1 - 0.2 * sq
+        u = self.u
+        return ox + u * (c * lx - s * ly), oy + u * (s * lx + c * ly)
+
+    def inv(self, X, Y):
+        """Ecran -> repere local."""
+        ox, oy = self.origin()
+        dx, dy = (X - ox) / self.u, (Y - oy) / self.u
+        c, s = math.cos(self.rot), math.sin(self.rot)
+        return c * dx + s * dy, -s * dx + c * dy
+
+    def pts(self, loc):
+        out = []
+        for lx, ly in loc:
+            out += self.T(lx, ly)
+        return out
+
+    def box(self):
+        u = self.u
+        cx, cy = self.T(0.0, -8.0)
+        return cx - 23 * u, cy - 25 * u, cx + 23 * u, cy + 25 * u
+
+    def update(self, dt, vx_abs, grounded):
+        super().update(dt, vx_abs, grounded)
+        self.ot += dt
+        T = OCTO_POSES.get(self.opose, OCTO_POSES['flotte'])
+        k = min(1.0, dt * 7)
+        for key, v in T.items():
+            self.PP[key] += (v - self.PP[key]) * k
+        self.wph += dt * self.PP['w']
+        d = (self.rot_t - self.rot + PI) % (2 * PI) - PI
+        self.rot += d * min(1.0, dt * 9)
+        self.off += (self.off_t - self.off) * min(1.0, dt * 10)
+        self.pulse = max(0.0, self.pulse - dt * 2.2)
+        if self.mood:
+            self.mood_c = self.mood
+        self.mood_w += ((1.0 if self.mood else 0.0) - self.mood_w) * min(1.0, dt * 3)
+
+    def colors(self):
+        co = OCTO_COATS.get(self.coat, OCTO_COATS['rose'])
+        base, dark, light, spot = co['base'], co['dark'], co['light'], co['spot']
+        if self.mood_w > 0.01:
+            m, w = OCTO_MOODS[self.mood_c], self.mood_w
+            base, dark, spot = mix(base, m, 0.7 * w), mix(dark, mix(m, '#000000', 0.18), 0.7 * w), mix(spot, mix(m, '#ffffff', 0.3), 0.7 * w)
+        if self.dry > 0.01:
+            base, dark = mix(base, '#b8aaa0', 0.45 * self.dry), mix(dark, '#9a8c84', 0.45 * self.dry)
+        return co, base, dark, light, spot
+
+    # ---- une tentacule : chaine de points (repere local, y vers le bas)
+    def tentacle(self, i):
+        P = self.PP
+        front = i % 2 == 0
+        k = i // 2
+        rx = (-7.5, -2.5, 2.5, 7.5)[k] if front else (-10.5, -5.0, 5.0, 10.5)[k]
+        root = (rx * (1 - 0.25 * self.pulse), -3.0 if front else -5.0)
+        side = 1 if rx > 0 else -1
+        L = P['L'] * (0.92 if not front else 1.0) * (1 + 0.15 * self.pulse) * (1 - 0.22 * self.kid)
+        seg = L / self.N
+        ph = i * 1.7
+        fl = self.floor
+        if i in self.reach:                                      # tentacule qui va chercher un point
+            tx, ty = self.reach[i]
+            out = [root]
+            mx_, my_ = (root[0] + tx) / 2 + side * 6, (root[1] + ty) / 2 + 4
+            for q in range(1, self.N + 1):
+                s_ = q / self.N
+                bx = (1 - s_) ** 2 * root[0] + 2 * (1 - s_) * s_ * mx_ + s_ * s_ * tx
+                by = (1 - s_) ** 2 * root[1] + 2 * (1 - s_) * s_ * my_ + s_ * s_ * ty
+                wob = math.sin(self.ot * 5 + q * 0.9 + ph) * 0.8 * math.sin(PI * s_)
+                out.append((bx + wob, by))
+            return out, front
+        dmb = self.dumbo                                         # Dumbo : bras ecartes en cloche (la peau les relie), bouts moins enroules
+        a = (P['spread'] + (0.3 if dmb else 0.0)) * rx / 10.0
+        curl = P['curl'] * (0.5 if dmb else 1.0)
+        pts = [root]
+        x, y = root
+        for q in range(self.N):
+            s_ = q / self.N
+            a += side * P['bend'] + P['amp'] * math.sin(self.wph - q * 0.7 + ph) * (0.3 + s_)
+            a += side * curl * (s_ ** 2.2) * 0.55
+            x += math.sin(a) * seg
+            y += math.cos(a) * seg
+            if fl is not None and y > fl:                        # posee au sol (ou collee au mur) : elle s'etale
+                y = fl
+            pts.append((x, y))
+        return pts, front
+
+    @staticmethod
+    def tube(pts, w0, w1):
+        """Contour d'un tube effile qui suit les points."""
+        left, right = [], []
+        n = len(pts)
+        for q in range(n):
+            p = pts[q]
+            a_ = pts[max(0, q - 1)]
+            b_ = pts[min(n - 1, q + 1)]
+            dx, dy = b_[0] - a_[0], b_[1] - a_[1]
+            d = math.hypot(dx, dy) or 1.0
+            nx, ny = -dy / d, dx / d
+            w = lerp(w0, w1, q / (n - 1)) / 2
+            left.append((p[0] + nx * w, p[1] + ny * w))
+            right.append((p[0] - nx * w, p[1] - ny * w))
+        return left + [pts[-1]] + right[::-1]
+
+    def draw(self, c, angry=False):
+        if self.peek:                                            # accroche a un rebord (menu de lancement)
+            keep = (self.off, self.reach, self.floor)
+            self.off, self.reach, self.floor = -30.0, {0: (-14.0, -5.5), 6: (14.0, -5.5)}, None
+            try:
+                self.draw_body(c, angry)
+            finally:
+                self.off, self.reach, self.floor = keep
+            return
+        self.draw_body(c, angry)
+
+    def draw_body(self, c, angry=False):
+        u = self.u
+        co, base, dark, light, spot = self.colors()
+        ol = co['ol']
+        ow = max(2, int(round(1.35 * u)))
+        sq = self.pulse
+        big = 1.0 + 0.12 * self.kid
+        rx, ry = 13.0 * (1 - 0.2 * sq) * big, 14.5 * (1 + 0.22 * sq) * big
+        if co.get('dumbo'):                                      # manteau en cloche, un peu plus haut
+            rx, ry = rx * 0.95, ry * 1.1
+        cy = -15.5 - 3 * sq - 2.0 * self.kid
+
+        def sticker(shapes):
+            for loc, fill in shapes:
+                c.create_polygon(*self.pts(loc), fill=ol, outline=ol, width=ow * 2, smooth=True)
+            for loc, fill in shapes:
+                c.create_polygon(*self.pts(loc), fill=fill, outline='', smooth=True)
+
+        tents = [self.tentacle(i) for i in range(8)]
+        dumbo = co.get('dumbo')
+        sticker([(self.tube(p, 5.4, 1.3), dark) for p, fr in tents if not fr])     # tentacules du fond
+        if dumbo:                                                # le vrai Dumbo : une peau fine en parapluie relie les bras
+            k_ = 7
+            arms = sorted((tents[i][0] for i in range(8)), key=lambda p_: p_[k_][0])
+            web = [arms[0][2]]
+            for j, p_ in enumerate(arms):                        # bord festonne : il remonte un peu entre deux bras
+                web.append(p_[k_])
+                if j < len(arms) - 1:
+                    a_, b_ = p_[k_], arms[j + 1][k_]
+                    web.append(((a_[0] + b_[0]) / 2, (a_[1] + b_[1]) / 2 - 2.2))
+            web += [arms[-1][2], (6.0, -6.0), (-6.0, -6.0)]
+            pw = [v for xy in web for v in self.T(*xy)]
+            c.create_polygon(pw, fill=mix(base, light, 0.25), outline=mix(base, ol, 0.6), width=max(1, int(0.9 * u)), smooth=True)
+        shapes = []
+        if dumbo:                                                # nageoires « oreilles » sur les cotes de la tete
+            fast = self.opose in ('jet', 'medusa', 'plane')
+            fl = math.sin(self.ot * (9 if fast else 2.6)) * (0.55 if fast else 0.3)
+            for sd in (-1, 1):
+                a = 0.35 + fl                                    # angle au-dessus de l'horizontale (battement)
+                bx, by = sd * (rx - 2.5), cy - 3.0
+                ax_, ay_ = sd * math.cos(a), -math.sin(a)        # axe de la nageoire, vers l'exterieur
+                px_, py_ = sd * math.sin(a), math.cos(a)         # sa largeur
+                loc = []
+                for q in range(16):                              # palette ovale, plus fine pres de la tete
+                    th = 2 * PI * q / 16
+                    ex = 7.0 + 7.2 * math.cos(th)
+                    ey = 4.6 * math.sin(th) * (0.55 if math.cos(th) < -0.5 else 1.0)
+                    loc.append((bx + ex * ax_ + ey * px_, by + ex * ay_ + ey * py_))
+                shapes.append((loc, mix(base, dark, 0.35)))
+        mant = []
+        for q in range(28):
+            th = 2 * PI * q / 28
+            cyq = math.cos(th)
+            yy = cy - ry * cyq if cyq > 0 else cy - ry * 0.62 * cyq   # dessous plus plat
+            mant.append((rx * math.sin(th) * (1.0 + 0.06 * cyq), yy))
+        shapes.append((mant, base))
+        shapes.append(([(-9.5, -9), (9.5, -9), (8.5, -2.5), (-8.5, -2.5)], base))
+        for p, fr in tents:
+            if fr:
+                shapes.append((self.tube(p, 6.0, 1.5), base))
+        sticker(shapes)
+        for p, fr in tents:                                      # ventouses (tentacules de devant)
+            if not fr:
+                continue
+            n = len(p)
+            sd = 1 if p[-1][0] < p[0][0] else -1
+            for q in range(4, n - 1):
+                a_, b_ = p[q - 1], p[min(n - 1, q + 1)]
+                dx, dy = b_[0] - a_[0], b_[1] - a_[1]
+                d = math.hypot(dx, dy) or 1.0
+                w = lerp(6.0, 1.5, q / (n - 1)) / 2
+                nx_, ny_ = -dy / d * sd, dx / d * sd
+                if dumbo:                                        # Dumbo : une rangee de ventouses + des cirres (petits filaments)
+                    if q % 2 == 0:
+                        r_ = max(0.4, w * 0.3)
+                        cx_, cy_ = self.T(p[q][0], p[q][1])
+                        c.create_oval(cx_ - r_ * u, cy_ - r_ * u, cx_ + r_ * u, cy_ + r_ * u, fill=light, outline='')
+                    for s_ in (-1, 1):
+                        x0_, y0_ = self.T(p[q][0] + nx_ * w * 0.35 * s_, p[q][1] + ny_ * w * 0.35 * s_)
+                        x1_, y1_ = self.T(p[q][0] + nx_ * (w * 0.35 + 1.1) * s_, p[q][1] + ny_ * (w * 0.35 + 1.1) * s_ + 0.3)
+                        c.create_line(x0_, y0_, x1_, y1_, fill=mix(light, base, 0.3), width=max(1, int(0.5 * u)), capstyle='round')
+                    continue
+                sx_, sy_ = p[q][0] + nx_ * w * 0.45, p[q][1] + ny_ * w * 0.45
+                r_ = max(0.4, w * 0.36)
+                cx_, cy_ = self.T(sx_, sy_)
+                c.create_oval(cx_ - r_ * u, cy_ - r_ * u, cx_ + r_ * u, cy_ + r_ * u, fill=light, outline='')
+        if dumbo:                                                # peau translucide : une lueur plus claire a l'interieur
+            c.create_polygon(*self.pts([(0.0 + rx * 0.62 * math.cos(th), cy - 2.0 + ry * 0.55 * math.sin(th)) for th in [2 * PI * q / 16 for q in range(16)]]),
+                             fill=mix(base, light, 0.45), outline='', smooth=True)
+        else:
+            for (sx_, sy_, r_) in ((-6.5, cy - 7, 2.0), (5.0, cy - 9.5, 1.5), (7.5, cy - 3, 1.2), (-2.0, cy - 11.5, 1.1)):
+                cx_, cy_ = self.T(sx_, sy_)
+                c.create_oval(cx_ - r_ * u, cy_ - r_ * 0.85 * u, cx_ + r_ * u, cy_ + r_ * 0.85 * u, fill=spot, outline='')
+        if self.dry < 0.6:                                       # reflet mouille
+            hl = mix(base, '#ffffff', 0.55)
+            c.create_polygon(*self.pts([(-8.5 + 3.5 * math.cos(th), cy - 6.5 + 5.5 * math.sin(th)) for th in [2 * PI * q / 14 for q in range(14)]]),
+                             fill=hl, outline='', smooth=True)
+            cx_, cy_ = self.T(-5.2, cy - 12.0)
+            c.create_oval(cx_ - 1.1 * u, cy_ - 1.1 * u, cx_ + 1.1 * u, cy_ + 1.1 * u, fill='#ffffff', outline='')
+        self.face(c, co, base, ol, cy, angry)
+
+    def face(self, c, co, base, ol, cy, angry):
+        u = self.u
+        lx, ly = self.look
+        er = 4.3 * (1.1 if self.cute else 1.0) * (1 + 0.15 * self.kid)
+        mode = self.oeye or self.eyes
+        ex_ = self.expr
+        if self.oeye is None:
+            if ex_ == 'heart':
+                mode = 'heart'
+            elif ex_ in ('wide', 'derp'):
+                mode = 'wide'
+            elif ex_ in ('wink', 'smug'):
+                mode = 'happy'
+            elif ex_ == 'dizzy':
+                mode = 'dizzy'
+            elif ex_ == 'sad' and mode == 'open':
+                mode = 'sad'
+        if angry and self.oeye is None and mode in ('open', 'wide', 'sad'):
+            mode = 'angry'
+        if mode in ('open', 'sad') and self.blink > 0:
+            mode = 'closed'
+
+        def el(cx, cy_, a, b, n=18):
+            return [v for q in range(n) for v in (cx + a * math.cos(2 * PI * q / n), cy_ + b * math.sin(2 * PI * q / n))]
+        for sd in (-1, 1):
+            ex, ey = self.T(sd * 5.6 + lx * 1.6, cy + 6.0 + ly * 1.0)
+            if mode == 'heart':
+                c.create_text(ex, ey, text='♥', fill='#ff3f7a', font=('Segoe UI Symbol', -int(er * 2.9 * u), 'bold'))
+                continue
+            if mode == 'closed':
+                c.create_line(ex - er * 0.9 * u, ey, ex, ey + 1.5 * u, ex + er * 0.9 * u, ey, fill=ol, width=max(2, int(1.9 * u)), smooth=True, capstyle='round')
+                continue
+            if mode == 'happy':
+                c.create_line(ex - er * 0.9 * u, ey + 1.2 * u, ex, ey - 1.8 * u, ex + er * 0.9 * u, ey + 1.2 * u, fill=ol, width=max(2, int(2.0 * u)), smooth=True, capstyle='round')
+                continue
+            if mode == 'dizzy':                                  # yeux en spirale
+                sp = []
+                for q in range(22):
+                    a = q * 0.75 + self.ot * 6 * sd
+                    r_ = er * 0.9 * u * q / 22
+                    sp += [ex + math.cos(a) * r_, ey + math.sin(a) * r_]
+                c.create_oval(ex - er * u, ey - er * 1.1 * u, ex + er * u, ey + er * 1.1 * u, fill='#ffffff', outline=ol, width=max(1, int(1.2 * u)))
+                c.create_line(sp, fill=ol, width=max(1, int(1.1 * u)), smooth=True)
+                continue
+            k = 1.15 if mode == 'wide' else 1.0
+            c.create_polygon(el(ex, ey, er * 0.98 * u * k, er * 1.12 * u * k), fill=ol, outline='')
+            c.create_polygon(el(ex, ey, er * 0.80 * u * k, er * 0.94 * u * k), fill=co['eye'], outline='')
+            gx, gy = lx * er * 0.3 * u, ly * er * 0.3 * u
+            pk = 0.45 if mode == 'wide' else 0.72
+            c.create_polygon(el(ex + gx, ey + gy, er * 0.62 * u * pk, er * 0.72 * u * pk), fill='#0a0a0e', outline='')
+            c.create_polygon(el(ex + gx - er * 0.3 * u, ey + gy - er * 0.42 * u, er * 0.36 * u, er * 0.36 * u, 10), fill='#ffffff', outline='')
+            c.create_polygon(el(ex + gx + er * 0.32 * u, ey + gy + er * 0.36 * u, er * 0.16 * u, er * 0.16 * u, 8), fill='#ffffff', outline='')
+            if mode == 'angry':
+                c.create_line(ex - sd * er * 1.15 * u, ey - er * 1.45 * u, ex + sd * er * 1.0 * u, ey - er * 0.55 * u, fill=ol, width=max(2, int(2.4 * u)), capstyle='round')
+            elif mode == 'sad':
+                c.create_line(ex - sd * er * 1.0 * u, ey - er * 0.75 * u, ex + sd * er * 0.9 * u, ey - er * 1.45 * u, fill=ol, width=max(2, int(1.8 * u)), capstyle='round')
+        for sd in (-1, 1):                                       # joues
+            cx_, cy_ = self.T(sd * 9.6 + lx * 1.2, cy + 9.6)
+            c.create_oval(cx_ - 2.2 * u, cy_ - 1.3 * u, cx_ + 2.2 * u, cy_ + 1.3 * u, fill=mix(base, '#ff4f7f', 0.45), outline='')
+        mx_, my_ = self.T(lx * 1.4, cy + 10.4)
+        mouth = self.omouth or ('o' if self.yawn > 0.5 else ('flat' if mode in ('sad', 'angry') else 'smile'))
+        if mouth == 'smile':
+            c.create_line(mx_ - 1.8 * u, my_ - 0.4 * u, mx_ - 0.9 * u, my_ + 0.6 * u, mx_, my_ - 0.2 * u, mx_ + 0.9 * u, my_ + 0.6 * u, mx_ + 1.8 * u, my_ - 0.4 * u,
+                          fill=ol, width=max(1, int(1.2 * u)), smooth=True, capstyle='round')
+        elif mouth in ('o', 'munch'):
+            r_ = 1.0 if mouth == 'o' else 1.0 + 0.6 * abs(math.sin(self.ot * 9))
+            c.create_oval(mx_ - r_ * u, my_ - r_ * 1.1 * u, mx_ + r_ * u, my_ + r_ * 1.1 * u, fill='#8a2a3c', outline=ol, width=max(1, int(1.0 * u)))
+        elif mouth == 'laugh':
+            c.create_polygon(mx_ - 2.2 * u, my_ - 0.6 * u, mx_ + 2.2 * u, my_ - 0.6 * u, mx_, my_ + 2.4 * u, fill='#8a2a3c', outline=ol, width=max(1, int(1.0 * u)), smooth=True)
+        else:
+            c.create_line(mx_ - 1.6 * u, my_ + 0.4 * u, mx_ + 1.6 * u, my_ - 0.2 * u, fill=ol, width=max(1, int(1.2 * u)), capstyle='round')
+
+
+class OctopusPet(CatPet):
+    """Poulpe : nage par jets de fenetre en fenetre, se colle aux bords, change de couleur selon son humeur,
+    attrape le pointeur avec une tentacule, rit aux chatouilles, lache un nuage d'encre si on secoue la souris,
+    et chasse les crevettes."""
+    UK = 1.3
+    G_K = 0.5                                                    # il flotte : gravite plus faible
+    ANGRY_STATES = ('defend', 'ink')
+    LOOK_STATES = CatPet.LOOK_STATES + ('color', 'belly', 'swat')
+    WORDS = {'Ronron...': 'Bloub bloub...', 'Je suis le roi !': 'Huit bras, zero souci !', 'Facile.': 'Facile, j ai 8 bras.',
+             'Hop hop !': 'Ventouses !', 'Oups !': 'Ca glisse !'}
+    FUNNY = (('derp', 'Bloup ?'), ('wink', 'Wink !'), ('smug', 'Hmm...'), ('wide', 'Oh !'), ('heart', 'Bloub !'))
+
+    def __init__(self, area, scale, getcursor, log=None, coat='rose'):
+        super().__init__(area, scale, getcursor, log, 'tabby')
+        old = self.cat
+        self.cat = OctoBody(old.x, old.y, self.u, coat)
+        self.tx = self.cat.x
+        self.animal = 'octopus'
+        self.menu_ctx = 'octopus'
+        self.g = 1400 * self.u * self.G_K
+        self.ink_ok = 0.0
+        self.ink_t = -9.0
+        self.color_seq = []
+        self.bub_t = 2.0
+        self.tickling = False
+
+    def set_scale(self, new):
+        super().set_scale(new)
+        self.g = 1400 * self.u * self.G_K
+
+    def update(self, dt):
+        super().update(dt)
+        if self.life.egg_t is None:
+            if not self.paused:
+                self.octo_tick(dt)
+            self.octo_look(dt)
+
+    # ------------------------------------------------------------------ utilitaires
+    def sound(self, name):
+        if name == 'purr':
+            name = 'snore' if self.state == 'sleep' else 'blub'
+        elif name in ('meow', 'woof'):
+            name = 'bloop'
+        self.snd.play(name)
+
+    def say(self, text):
+        text = self.WORDS.get(text, text)
+        hx, hy = self.cat.T(0.0, -34.0)
+        self.words.append([text, hx, hy - 10 * self.u, 0.0])
+
+    def can_chase(self):
+        return False                                             # secouer la souris : encre, pas course-poursuite
+
+    def new_toy(self, held=False, kind=None):
+        kind = kind or random.choices(['fly', 'butterfly', 'shrimp', 'yarn'], [0.25, 0.15, 0.4, 0.2])[0]
+        return super().new_toy(held, kind)
+
+    def spawn_ambient(self):
+        l, t, r, b = self.area
+        u = self.u
+        side = random.choice((-1, 1))
+        if random.random() < 0.55:                               # une crevette traverse l'ecran
+            o = Toy('shrimp', l + 12 if side < 0 else r - 12, b, u)
+            o.transit = True
+            o.dir = -side
+            o.pkey = ('ground', 0)
+            o.px0 = l + 4
+            o.life = 70
+            self.toys.append(o)
+        else:
+            y = random.uniform(max(t + 100, b - 520 * (u / 1.75)), b - 90)
+            self.flies.append(Fly(l + 6 if side < 0 else r - 6, y, 0.0 if side < 0 else PI, self.s, random.choice(('fly', 'butterfly'))))
+
+    def plan_jump(self, tx, ty, ct=None, a=None):
+        super().plan_jump(tx, ty, ct, a)
+        if ct is None or ct is self.cat:
+            self.jet_fx()
+
+    def jet_fx(self):
+        """Il se propulse : le manteau se contracte et lache des bulles derriere lui."""
+        ct, u = self.cat, self.u
+        if ct.dumbo:                                             # le Dumbo ne fait pas de jet : il bat des oreilles
+            self.sound('blub')
+            return
+        ct.pulse = 1.0
+        x, y = ct.T(0.0, 8.0)
+        for q in range(4):
+            self.sparks.append([x + random.uniform(-8, 8) * u, y + random.uniform(0, 10) * u,
+                                -self.vx * 0.12 + random.uniform(-15, 15), -random.uniform(5, 30), -q * 0.06, 'bubble'])
+        self.sound('bloop')
+
+    def reach_cursor(self, n=1):
+        """Une (ou deux) tentacules qui vont chercher le pointeur."""
+        ct = self.cat
+        lx, ly = ct.inv(*self.cur)
+        roots = {0: -7.5, 2: -2.5, 4: 2.5, 6: 7.5}
+        out = {}
+        for i in ((6, 4) if lx > 0 else (0, 2))[:n]:
+            rx, ry = roots[i], -3.0
+            dx, dy = lx - rx, ly - ry
+            dd = math.hypot(dx, dy) or 1.0
+            m = min(dd, 34.0)
+            out[i] = (rx + dx / dd * m, ry + dy / dd * m)
+        return out
+
+    # ------------------------------------------------------------------ decisions
+    def decide(self):
+        ct, u = self.cat, self.u
+        r = random.random()
+        p = self.cur_plat()
+        if self.still_t > 50 and random.random() < 0.5:
+            return self.start_sleep()
+        if self.still_t > 2 and self.cspeed < 80 and abs(self.cur[0] - ct.x) < 700 * (u / 1.75) and random.random() < 0.10:
+            return self.set_state('greet')
+        if random.random() < 0.07 and self.start_rim():
+            return
+        if (self.hunger > 0.5 or random.random() < 0.5) and self.prey_list() and self.start_hunt():
+            return
+        if r < 0.10 and self.start_climb():
+            return
+        if r < 0.24 and p:
+            return self.start_walk(random.uniform(p['x0'] + 30 * u, p['x1'] - 30 * u))
+        if r < 0.46:
+            return self.start_jump_random()                      # un jet vers une autre fenetre
+        if r < 0.54:
+            return self.set_state('stretch')
+        if r < 0.61:
+            return self.set_state('loaf')
+        if r < 0.68:
+            return self.set_state('color')
+        if r < 0.80:
+            return self.start_curious()
+        return self.go_idle(random.uniform(2, 5))
+
+    def octo_tick(self, dt):
+        ct, u = self.cat, self.u
+        st = self.state
+        # souris secouee tout pres (mais pas sur lui : ca, ce sont des chatouilles) -> nuage d'encre et il file
+        if (len(self.wiggle) >= 4 and st in self.CALM and ct.pkey is not None and self.now > self.ink_ok
+                and not self.menu_open and not self.over_cat()
+                and math.hypot(self.cur[0] - ct.x, self.cur[1] - (ct.y - 20 * u)) < 320 * u):
+            self.wiggle = []
+            return self.start_ink()
+        self.bub_t -= dt                                         # petites bulles de temps en temps
+        if self.bub_t <= 0:
+            self.bub_t = random.uniform(2.5, 6.0)
+            if st not in ('rim', 'held', 'climb'):
+                x, y = ct.T(0.0, -6.0)
+                self.sparks.append([x, y, random.uniform(-6, 6), -random.uniform(18, 30) * self.s, 0.0, 'bubble'])
+
+    # ------------------------------------------------------------------ apparence selon l'etat
+    def octo_look(self, dt):
+        ct, u, st, L = self.cat, self.u, self.state, self.life
+        pose, rot, eye, mouth, mood, off, floor, reach = 'flotte', 0.0, None, None, None, -14.0, 14.0, {}
+        snap = False
+        self.tickling = st == 'belly' and self.over_cat() and self.cspeed > 60
+        if st == 'held':
+            pose, off, floor, eye, mouth, mood = 'pend', -26.0, None, 'wide', 'o', 'peur'
+            if getattr(self, 'held_chomp', 0.0) > 0:
+                eye, mouth, mood = 'happy', 'munch', 'content'
+        elif st == 'climb':                                      # colle au bord de la fenetre par ses ventouses
+            on_wall = self.sub in ('b', 'c')
+            pose = 'etoile' if on_wall else ('jet' if self.sub == 'a2' else 'flotte')
+            rot, snap = ct.spin * ct.dir, True
+            off, floor = (-18.0, 18.0) if on_wall else ((-14.0, 14.0) if self.sub == 'a' else (-16.0, None))
+        elif st == 'rim' and self.rim and self.rim['hw'] in self.win_by:      # cache derriere la fenetre
+            wt = self.win_by[self.rim['hw']][1]
+            depth = clamp((ct.y - wt) / (34 * u), 0.0, 1.0)
+            floor = None
+            if self.sub in ('a', 'h'):
+                oy = lerp(wt - 14 * u, wt + 31 * u, depth)
+                if depth > 0.4:
+                    reach = {0: (-9.0, (wt - oy) / u - 1.0), 6: (9.0, (wt - oy) / u - 1.0)}
+            elif self.sub == 'p':                                # les yeux depassent, deux bouts de tentacules sur le rebord
+                oy = wt + 4 * u
+                reach = {0: (-14.0, -5.5), 6: (14.0, -5.5)}
+            else:
+                oy = lerp(wt - 14 * u, wt + 4 * u, depth)
+            off = (oy - ct.y) / u
+        elif ct.pkey is None:                                    # en l'air : jet en montant, parachute en descendant
+            floor, off = None, -16.0
+            if st == 'flip':
+                pose, rot, snap = 'jet', ct.spin, True
+            elif ct.dumbo:                                       # le Dumbo nage en battant des oreilles, le parapluie pulse
+                pose = 'medusa'
+                rot = clamp(self.vx / 1100.0, -0.35, 0.35)
+                ct.pulse = max(ct.pulse, 0.35 + 0.35 * math.sin(self.now * 7))
+                eye = 'happy' if st == 'jump' and self.vy > 0 else None
+            elif self.vy < 60:
+                pose = 'jet'
+                rot = clamp(math.atan2(self.vx, -min(self.vy, -1.0)), -1.3, 1.3)
+                mouth = 'o'
+            else:
+                pose = 'plane'
+                rot = clamp(self.vx / 900.0, -0.45, 0.45)
+                eye = 'happy' if st == 'jump' else None
+        elif st == 'sleep':
+            pose, off, floor, mood, mouth = 'dort', -11.0, 11.0, 'calme', 'flat'
+        elif st == 'belly':                                      # chatouilles
+            pose = 'rit' if self.tickling else 'flotte'
+            eye, mouth, mood = 'happy', ('laugh' if self.tickling else 'smile'), 'content'
+        elif st == 'pet':                                        # il tient le pointeur avec une tentacule
+            reach, mood = self.reach_cursor(1), 'content'
+        elif st == 'swat':
+            reach, mouth = self.reach_cursor(2), 'o'
+        elif st in ('eat', 'feed'):
+            reach, mouth, eye, mood = {2: (-1.5, -6.5), 4: (1.5, -6.5)}, 'munch', 'happy', 'content'
+        elif st == 'stretch':
+            pose = 'etoile'
+        elif st == 'loaf':
+            pose, off, floor = 'dort', -12.0, 12.0
+        elif st == 'color':
+            i = int(self.state_t / 0.85)
+            seq = self.color_seq
+            mood = seq[i] if i < len(seq) else None
+            pose, eye = ('etoile' if i % 2 else 'flotte'), 'happy'
+        elif st in ('ink', 'defend'):
+            eye, mouth = 'angry', 'flat'
+        elif st == 'dizzy':
+            rot, eye = 0.3 * math.sin(self.now * 5), 'dizzy'
+        elif st == 'bath':
+            pose, eye = 'rit', 'happy'
+        elif abs(self.vx) > 5:                                   # il marche sur ses tentacules
+            pose, rot = 'marche', ct.dir * 0.08
+        if ct.dumbo and self.now - getattr(self, 'pale_t', -9.0) < 3.0:
+            mood = 'peur'                                        # tout pale de peur
+            if st == 'ink':
+                eye, mouth = 'wide', 'o'
+        if mood is None and (st in self.ANGRY_STATES or self.now - self.ink_t < 3.0):
+            mood = 'fache'
+        if mood is None and ct.expr == 'wide':
+            mood = 'peur'
+        if mood is None and st in ('greet', 'pet'):
+            mood = 'content'
+        ct.dry += ((0.7 if L.sick else 0.0) - ct.dry) * min(1.0, dt * 2)
+        ct.opose, ct.rot_t, ct.oeye, ct.omouth, ct.mood = pose, rot, eye, mouth, mood
+        ct.off_t, ct.floor, ct.reach = off, floor, reach
+        if snap:
+            ct.rot = rot
+
+    # ------------------------------------------------------------------ etats propres au poulpe
+    def start_ink(self):
+        ct, u = self.cat, self.u
+        self.ink_ok = self.now + 10
+        if ct.dumbo:                                             # le vrai Dumbo n'a pas d'encre : il palit et s'enfuit
+            self.pale_t = self.now
+            self.set_face('wide', 1.5)
+            self.sound('blub')
+            self.say(random.choice(('Pas d encre... je file !', 'Eek !', 'Au secours !')))
+            self.start_jump_random()
+            if self.state not in ('jump', 'walk'):
+                self.set_state('ink')
+            return
+        self.ink_t = self.now
+        x, y = ct.T(0.0, -4.0)
+        for q in range(16):
+            a = random.uniform(0, 2 * PI)
+            sp = random.uniform(10, 70)
+            self.sparks.append([x + math.cos(a) * 6 * u, y + math.sin(a) * 5 * u, math.cos(a) * sp, math.sin(a) * sp * 0.6 - 8, -q * 0.02, 'ink'])
+        self.sound('hiss')
+        self.say(random.choice(('Pfffft !', 'Encre !', 'Laisse-moi !')))
+        self.life.joy = max(0.0, self.life.joy - 0.02)
+        self.start_jump_random()                                 # il file a l'abri
+        if self.state not in ('jump', 'walk'):
+            self.set_state('ink')
+
+    def st_ink(self, dt):
+        self.vx = 0.0
+        if self.state_t > 1.2:
+            self.go_idle(random.uniform(1, 2))
+
+    def st_defend(self, dt):                                     # curseur tres rapide tout pres : encre !
+        if self.now > self.ink_ok:
+            self.start_ink()
+        else:
+            self.go_idle(0.5)
+
+    def st_color(self, dt):
+        """Il change de couleur pour le plaisir (rose, bleu, rouge, blanc)."""
+        self.vx = 0.0
+        if self.sub == 'a':
+            self.sub = 'b'
+            self.color_seq = random.sample(list(OCTO_MOODS), 4)
+            self.say(random.choice(('Ta-daa !', 'Regarde !', 'Camouflage !')))
+            self.sound('ding')
+        if self.state_t > 4.2:
+            self.go_idle(random.uniform(1, 3))
+
+    def st_pet(self, dt):
+        ct, u = self.cat, self.u
+        self.vx = 0.0
+        self.pet_heart_t += dt
+        if self.pet_heart_t > 0.8:
+            self.pet_heart_t = 0.0
+            self.hearts.append([ct.x + random.uniform(-10, 10) * u, ct.y - 50 * u, 0.0])
+            self.sound('purr')
+        self.pet_away = 0.0 if self.over_cat() else self.pet_away + dt
+        if self.pet_away > 0.9:
+            self.pet_ok = self.now + 1.0
+            self.go_idle(1.5)
+
+    def st_belly(self, dt):
+        """Chatouilles : il se tortille et rit tant que le pointeur fait des allers-retours sur lui."""
+        ct, u = self.cat, self.u
+        t = self.state_t
+        self.vx = 0.0
+        if self.sub == 'a':
+            self.sub, self.belly_away = 'b', 0.0
+            self.say(random.choice(('Hi hi hi !', 'Ha ha ha !')))
+        tick = self.over_cat() and self.cspeed > 60
+        ct.squash = 0.12 * abs(math.sin(t * 14)) if tick else ct.squash
+        self.pet_heart_t += dt
+        if tick and self.pet_heart_t > 0.5:
+            self.pet_heart_t = 0.0
+            self.hearts.append([ct.x + random.uniform(-15, 15) * u, ct.y - 45 * u, 0.0])
+            self.sound('purr')
+            if random.random() < 0.25:
+                self.say(random.choice(('Hi hi hi !', 'Ha ha !', 'Arrete, ca chatouille !', '8 bras, 8 fois plus de chatouilles !')))
+        self.life.joy = min(1.0, self.life.joy + dt * 0.012)
+        self.belly_away = 0.0 if tick else self.belly_away + dt
+        if self.belly_away > (2.5 if self.life.has('paresseux') else 1.4) or t > 25:
+            self.belly_ok = self.now + 4
+            self.pet_ok = self.now + 1.0
+            self.go_idle(random.uniform(1.0, 2.5))
+
+    def st_swat(self, dt):
+        """Pointeur immobile au-dessus de lui : une tentacule monte l'attraper."""
+        ct, u = self.cat, self.u
+        self.vx = 0.0
+        t = self.state_t
+        if self.sub == 'a':
+            self.sub, self.swat_hit = 'b', False
+        lx, ly = ct.inv(*self.cur)
+        d = math.hypot(lx, ly + 3)
+        if t > 5.0 or d > 70 or self.cspeed > 900:
+            if self.cspeed > 900:
+                self.say('Rate !')
+            elif d > 70:
+                self.say('Trop loin !')
+            return self.go_idle(random.uniform(1.0, 2.5))
+        if d < 36 and t > 0.5 and not self.swat_hit:
+            self.swat_hit = True
+            self.sound('tap')
+            self.sparks.append([self.cur[0], self.cur[1], random.uniform(-30, 30), -random.uniform(10, 40), 0.0, 'star'])
+            if random.random() < 0.5:
+                self.say(random.choice(('Attrape !', 'A moi !', 'Ventouse !')))
+
+    # ------------------------------------------------------------------ menu
+    def menu_items(self):
+        if self.menu_page == 'race':
+            return super().menu_items()
+        if self.menu_page == 'coat':
+            rows = [('Couleur', None)]
+            for k in OCTO_ORDER:
+                rows.append((OCTO_COATS[k]['name'] + ('   (actuelle)' if k == self.cat.coat else ''), 'coat:' + k))
+            rows.append(('<  Retour', 'back'))
+            return rows
+        top = []
+        if self.menu_ctx == 'basket':
+            top = [('Sortir : une crevette', 'prey:shrimp'), ('Sortir : une mouche', 'prey:fly'),
+                   ('Sortir : un papillon', 'prey:butterfly'), ('Sortir : une pelote', 'prey:yarn')]
+        return paged_menu(self.menu_page, self.animal, top + [
+            ('Faim : %d%%' % int(self.hunger * 100), None),
+            ('Race : ' + ANIMALS[self.animal] + '   >', 'race'),
+            ('Couleur : ' + OCTO_COATS.get(self.cat.coat, OCTO_COATS['rose'])['name'] + '   >', 'coat'),
+            ('Style mignon : ' + ('oui' if self.cute else 'non'), 'cute'),
+            ('Dormir', 'sleep'),
+            ('S etirer en etoile', 'stretch'),
+            ('Changer de couleur', 'color'),
+            (('Se sauver (pas d encre !)' if self.cat.dumbo else 'Nuage d encre'), 'ink'),
+            ('Nager (jet !)' if not self.cat.dumbo else 'Nager en battant des oreilles', 'swim'),
+            ('Grimper a une fenetre', 'climb'),
+            ('Se cacher derriere la fenetre', 'rim'),
+            ('Donner a manger (gamelle)', 'feed'),
+            ('Proies spontanees : ' + ('oui' if self.ambient else 'non'), 'ambient'),
+            ('Taille +', 'size+'),
+            ('Taille -', 'size-'),
+            ('Son : ' + ('oui' if self.snd.on else 'coupe'), 'sound'),
+            ('Volume + (%d %%)' % int(round(self.snd.volume * 100)), 'vol+'),
+            ('Volume -', 'vol-'),
+            ('Reprendre' if self.paused else 'Pause', 'pause'),
+            ('Quitter', 'quit'),
+        ], self)
+
+    def menu_action(self, act):
+        if act == 'swim':
+            if self.cat.pkey is not None:
+                self.start_jump_random()
+            self.save_config()
+        elif act == 'color':
+            self.set_state('color')
+            self.save_config()
+        elif act == 'ink':
+            self.start_ink()
+            self.save_config()
+        elif act.startswith('coat:') and act[5:] not in OCTO_COATS:
+            return
+        else:
+            super().menu_action(act)
+
+    def save_config(self):
+        if self.cfg_save:
+            try:
+                self.cfg_save({'animal': 'octopus', 'ocoat': self.cat.coat, 'bx': self.bk.x, 'by': self.bk.y, 'scale': self.s,
+                               'sound': self.snd.on, 'volume': self.snd.volume, 'cute': self.cute, 'ambient': self.ambient})
+            except Exception:
+                pass
+
+
 
 # ------------------------------------------------------------ fenêtres ouvertes
 WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
@@ -9925,7 +10726,7 @@ def autostart_set(on):
         return True
     except Exception:
         return False
-MAMMALS = ('cat', 'dog', 'goat', 'ferret')
+MAMMALS = ('cat', 'dog', 'goat', 'ferret', 'octopus')            # les animaux qui ont une vie (oeuf, age, sauvegardes)
 
 
 def coat_table(kind):
@@ -9938,6 +10739,8 @@ def coat_table(kind):
         return GOAT_COATS, 'gcoat', list(GOAT_COATS)
     if kind == 'ferret':
         return FERRET_COATS, 'fcoat', list(FERRET_COATS)
+    if kind == 'octopus':
+        return OCTO_COATS, 'ocoat', OCTO_ORDER
     return COATS, 'coat', COAT_ORDER
 
 
@@ -10149,6 +10952,9 @@ class Chooser:
             try:
                 if k == 'spider':
                     m = Spider(0, 0, 1.25, valid_coat('spider', self.coats.get('spider')))
+                elif k == 'octopus':
+                    m = OctoBody(0, 0, 1.05, valid_coat(k, self.coats.get(k)))
+                    m.peek = True
                 else:
                     m = Cat(0, 0, 1.05, valid_coat(k, self.coats.get(k)))
                     m.view, m.hlook = 'front', True
@@ -10241,6 +11047,12 @@ class Chooser:
         try:
             if self.kind == 'spider':
                 self.model = Spider(150, 120, 2.2, self.coats['spider'])
+            elif self.kind == 'octopus':
+                ct = OctoBody(150, 192, 2.3, self.coats['octopus'])
+                ct.look = (0.25, 0.1)
+                for _ in range(20):
+                    ct.update(0.04, 0, True)
+                self.model = ct
             else:
                 u = {'dog': 1.35, 'goat': 1.4, 'ferret': 1.45}.get(self.kind, 1.6)
                 ct = Cat(150, 196, u, self.coats[self.kind])
@@ -10268,7 +11080,13 @@ class Chooser:
             cv.create_oval(95, 190, 205, 204, fill='#c4d3b2', outline='')
             self.t += 0.04
             m = self.model
-            if isinstance(m, Cat):
+            if isinstance(m, OctoBody):                           # le poulpe ondule, s'etire en etoile, sourit
+                ph = int(self.t / 3.5) % 3
+                m.opose = ('flotte', 'etoile', 'marche')[ph]
+                m.oeye = 'happy' if ph == 1 else None
+                m.update(0.04, 0, True)
+                m.draw(cv)
+            elif isinstance(m, Cat):
                 ph = int(self.t / 3.5) % 3
                 m.set_pose(('sit', 'stand', 'sit')[ph], 6)
                 m.view = ('3q', 'side', 'front')[ph]
@@ -10798,13 +11616,16 @@ def main():
             old.life_save()
         if hasattr(old, 'close_layers'):
             old.close_layers()
-        if kind in ('cat', 'dog', 'goat', 'ferret'):
+        if kind in MAMMALS:
             if kind == 'cat':
                 coat = shared.get('coat') if shared.get('coat') in COATS else 'tabby'
                 new = CatPet(area, old.s, old.getcur, log=old.log, coat=coat)
             elif kind == 'ferret':
                 coat = shared.get('fcoat') if shared.get('fcoat') in FERRET_COATS else 'sable'
                 new = FerretPet(area, old.s, old.getcur, log=old.log, coat=coat)
+            elif kind == 'octopus':
+                coat = shared.get('ocoat') if shared.get('ocoat') in OCTO_COATS else 'rose'
+                new = OctopusPet(area, old.s, old.getcur, log=old.log, coat=coat)
             elif kind == 'goat':
                 coat = shared.get('gcoat') if shared.get('gcoat') in GOAT_COATS else 'caramel'
                 new = GoatPet(area, old.s, old.getcur, log=old.log, coat=coat)
@@ -10963,7 +11784,7 @@ def main():
     if pet.comp_on:
         pet.ensure_comp()
     animal0 = opt('--animal', str(cfg.get('animal', 'spider')))
-    if animal0 in ('cat', 'dog', 'goat', 'ferret') and not selftest:
+    if animal0 in MAMMALS and not selftest:
         switch_animal(animal0)
     if '--switchtest' in argv:                                   # test : bascule araignée -> chat -> araignée
         def _rep(tag):
