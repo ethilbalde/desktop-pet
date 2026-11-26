@@ -2,6 +2,27 @@
 
 > **Tu t'ennuies au bureau ?** Voici un petit animal pour te faire passer le temps.
 
+**Filmé en vrai sur un bureau Windows :**
+
+<p align="center">
+  <img src="docs/chat_reveil.gif" width="400" alt="Le chat se réveille dans son panier">
+  <img src="docs/chat_patte.gif" width="400" alt="Le chat donne des coups de patte au pointeur">
+</p>
+<p align="center">
+  <img src="docs/chat_dos.gif" width="400" alt="Le chat se roule sur le dos pendant les gratouilles">
+  <img src="docs/chat_coeur.gif" width="400" alt="Le chat a des cœurs dans les yeux">
+</p>
+<p align="center">
+  <img src="docs/chat_dodo.gif" width="400" alt="Le chat dort et rêve d'une souris">
+  <img src="docs/vrai_grimpe.gif" width="400" alt="Le furet escalade une fenêtre">
+</p>
+<p align="center">
+  <img src="docs/vrai_reveil.gif" width="400" alt="Le furet se réveille : Dook !">
+  <img src="docs/vrai_dodo.gif" width="400" alt="Le furet dort sur une fenêtre">
+</p>
+
+**Et les autres animaux en action :**
+
 <p align="center">
   <img src="docs/climb.gif" width="400" alt="Le chat grimpe sur une fenêtre">
   <img src="docs/belly.gif" width="400" alt="Le chien se roule sur le dos quand on lui fait des gratouilles">
@@ -9,6 +30,10 @@
 <p align="center">
   <img src="docs/swat.gif" width="400" alt="Le chat donne des coups de patte au pointeur">
   <img src="docs/chase.gif" width="400" alt="Le furet chasse le pointeur">
+</p>
+<p align="center">
+  <img src="docs/sleep.gif" width="400" alt="Le chat dort sur une fenêtre et rêve d'une souris">
+  <img src="docs/hide.gif" width="400" alt="Le chat se cache derrière une fenêtre et jette un œil">
 </p>
 
 *🇬🇧 **In English:** a cute animated pet (spider, cat, dog, pygmy goat, ferret) that lives on your Windows desktop. It climbs your windows, hides behind them, chases your mouse cursor, rolls over for belly rubs, and grows up like a Tamagotchi (it never dies). One single .exe, nothing to install. Grab it from the **Releases** tab.*
