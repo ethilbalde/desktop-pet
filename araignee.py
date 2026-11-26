@@ -3233,6 +3233,15 @@ class Pet:
             if self.cfg_save:
                 self.cfg_save({'show_launcher': PREFS['launcher']})
             self.menu_page, self.menu_open = 'settings', True
+        elif act == 'autostart':
+            on = not PREFS.get('autostart', False)
+            if autostart_set(on):
+                PREFS['autostart'] = on
+                if self.cfg_save:
+                    self.cfg_save({'autostart': on})
+                if hasattr(self, 'say'):
+                    self.say('Je me lancerai avec Windows !' if on else 'Je ne me lancerai plus tout seul.')
+            self.menu_page, self.menu_open = 'settings', True
         elif act == 'monitor':
             n = monitor_count()
             if n > 1 and self.cfg_save:
@@ -8228,6 +8237,15 @@ class CatPet:
             if self.cfg_save:
                 self.cfg_save({'show_launcher': PREFS['launcher']})
             self.menu_page, self.menu_open = 'settings', True
+        elif act == 'autostart':
+            on = not PREFS.get('autostart', False)
+            if autostart_set(on):
+                PREFS['autostart'] = on
+                if self.cfg_save:
+                    self.cfg_save({'autostart': on})
+                if hasattr(self, 'say'):
+                    self.say('Je me lancerai avec Windows !' if on else 'Je ne me lancerai plus tout seul.')
+            self.menu_page, self.menu_open = 'settings', True
         elif act == 'bath':
             if not self.start_bath():
                 self.say('Pas ici...')
@@ -8813,7 +8831,7 @@ ACTION_ACTS = {'sleep', 'groom', 'stretch', 'zoom', 'climb', 'scratch', 'rim', '
                'frenzy', 'mad', 'fchase', 'dance', 'show', 'dangle', 'hide', 'wash'}
 OUT_ACTS = {'box', 'ball'}
 ANIMAL_ACTS = {'race', 'coat', 'cute', 'buddy', 'ambient', 'species', 'comp', 'dew', 'reset', 'load'}
-SETTING_ACTS = {'size+', 'size-', 'sound', 'vol+', 'vol-', 'pause', 'quit', 'monitor', 'update', 'quality', 'launcher'}
+SETTING_ACTS = {'size+', 'size-', 'sound', 'vol+', 'vol-', 'pause', 'quit', 'monitor', 'update', 'quality', 'launcher', 'autostart'}
 OUT_ITEMS = {
     'spider': [('Une mouche', 'prey:fly'), ('Un moustique', 'prey:mosquito'), ('Un papillon', 'prey:butterfly')],
     'cat': [('Une mouche', 'prey:fly'), ('Un papillon', 'prey:butterfly'), ('Une souris', 'prey:mouse'), ('Une pelote', 'prey:yarn')],
@@ -8861,6 +8879,7 @@ def paged_menu(page, animal, rows, pet=None):
         if n > 1:
             extra.append(('Ecran : %d sur %d   (changer >)' % (MON.get('index', 1), n), 'monitor'))
         extra.append(('Menu au lancement : ' + ('oui' if PREFS.get('launcher', True) else 'non'), 'launcher'))
+        extra.append(('Lancer avec Windows : ' + ('oui' if PREFS.get('autostart', False) else 'non'), 'autostart'))
         extra.append(('Mise a jour   (v%s)' % VERSION, 'update'))
         if UPDATER.msg:
             extra.append((UPDATER.msg, None))
@@ -9866,7 +9885,46 @@ def read_windows(max_n=8):
 # ------------------------------------------------------------------- application
 # ============================================================================ FENETRES : nom, choix de l'animal, sauvegardes
 DLG = dict(bg='#fff6ec', card='#ffffff', fg='#3b2f27', sub='#8c7b6b', acc='#ff7f50', acc2='#ffd9c7', line='#ecdccb', btn='#f3e6d8')
-PREFS = {'launcher': True}
+PREFS = {'launcher': True, 'autostart': False}
+
+RUN_KEY = r'Software\Microsoft\Windows\CurrentVersion\Run'
+RUN_NAME = 'DesktopPet'
+
+
+def autostart_cmd():
+    """La commande que Windows lance a l'ouverture de session (sans le menu de lancement)."""
+    if getattr(sys, 'frozen', False):
+        return '"%s" --direct' % sys.executable
+    exe = sys.executable
+    w = os.path.join(os.path.dirname(exe), 'pythonw.exe')         # pas de fenetre noire au demarrage
+    return '"%s" "%s" --direct' % (w if os.path.exists(w) else exe, os.path.abspath(__file__))
+
+
+def autostart_get():
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as k:
+            winreg.QueryValueEx(k, RUN_NAME)
+            return True
+    except Exception:
+        return False
+
+
+def autostart_set(on):
+    """Active / desactive le lancement avec Windows (cle Run de l'utilisateur). Renvoie True si c'est fait."""
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE) as k:
+            if on:
+                winreg.SetValueEx(k, RUN_NAME, 0, winreg.REG_SZ, autostart_cmd())
+            else:
+                try:
+                    winreg.DeleteValue(k, RUN_NAME)
+                except FileNotFoundError:
+                    pass
+        return True
+    except Exception:
+        return False
 MAMMALS = ('cat', 'dog', 'goat', 'ferret')
 
 
@@ -10677,6 +10735,20 @@ def main():
         with open(tmp, 'w', encoding='utf-8') as f:
             json.dump(shared, f)
         os.replace(tmp, cfg_path)                                # écriture atomique
+
+    # lancement avec Windows : active d'office a la premiere installation (exe), puis selon le reglage
+    if not selftest and not any(a in argv for a in ('--regtest', '--dancetest', '--flytest', '--switchtest')):
+        want = cfg.get('autostart')
+        if want is None:
+            want = bool(getattr(sys, 'frozen', False))             # l'exe s'installe au demarrage ; les sources non
+            try:
+                save_cfg({'autostart': want})
+            except Exception:
+                pass
+        if autostart_set(want):                                  # (re)ecrit le chemin : l'exe a pu etre deplace
+            PREFS['autostart'] = want
+        else:
+            PREFS['autostart'] = autostart_get()
 
     def sample_color(x, y):
         try:

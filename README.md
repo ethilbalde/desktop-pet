@@ -54,11 +54,11 @@ Chacun a plusieurs pelages, des grimaces (yeux qui louchent, cœurs dans les yeu
 2. Double-clique dessus. C'est tout : **rien à installer, aucun Python, aucune dépendance**. Tout est dans le fichier.
    - Windows peut afficher « Windows a protégé votre ordinateur » : clique sur **Informations complémentaires**, puis **Exécuter quand même**. L'exe n'est pas signé, l'animal non plus.
 3. Choisis ton animal et son pelage dans le menu de lancement. Un œuf apparaît.
-4. Adieu productivité.
+4. Adieu productivité. Et pas seulement aujourd'hui : **il se lance tout seul à chaque démarrage de Windows**, pour t'accueillir le matin. Tu préfères qu'il attende sagement que tu l'appelles ? *Réglages* > *Lancer avec Windows : non*.
 
 **Mettre à jour :** *Réglages* > *Mise à jour*. Il télécharge la dernière version depuis GitHub et redémarre, **sans oublier ton animal** (âge, nom, caractère, tout est gardé).
 
-**Désinstaller (si tu en as le cœur) :** quitte le programme, supprime `DesktopPet.exe`, puis le dossier `%APPDATA%\DesktopPet` où vivent ses souvenirs. Il ne laisse rien d'autre sur ton PC, pas même une petite crotte.
+**Désinstaller (si tu en as le cœur) :** dans *Réglages*, mets *Lancer avec Windows* sur *non*, quitte le programme, supprime `DesktopPet.exe`, puis le dossier `%APPDATA%\DesktopPet` où vivent ses souvenirs. Il ne laisse rien d'autre sur ton PC, pas même une petite crotte.
 
 ## Mode d'emploi
 
