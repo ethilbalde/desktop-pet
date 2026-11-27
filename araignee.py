@@ -4219,6 +4219,13 @@ for _P in (POSES, DOG_POSES, GOAT_POSES, FERRET_POSES):
     _P['belly2'] = _belly(_P['stand'], 1.0)
 for _k in ('belly', 'belly2'):                       # chevre : tete un peu relevee (les cornes ne rentrent pas dans le sol)
     GOAT_POSES[_k] = dict(GOAT_POSES[_k], hdy=GOAT_POSES[_k]['sy'] + 8, ta=-1.85)
+for _P, _yk in ((POSES, 1.0), (DOG_POSES, 1.0), (GOAT_POSES, 1.0), (FERRET_POSES, 0.95)):
+    _e = _P['eat_low']                               # caresse pendant le repas : l'arriere-train monte sous la main, la queue se dresse
+    _P['eat_butt'] = dict(_e, hy=_e['hy'] - 9 * _yk, ta=(-1.7 if _P is not FERRET_POSES else -2.2), curl=0.25, amp=0.18,
+                          feet=(_e['feet'][0], _e['feet'][1], (_e['feet'][2][0] - 2 * _yk, 0), (_e['feet'][3][0] - 2 * _yk, 0)))
+_e = GOAT_POSES['eat_low']                           # chevre derangee pendant le repas : ruade des pattes arriere
+GOAT_POSES['eat_kick'] = dict(_e, hy=_e['hy'] - 4, feet=(_e['feet'][0], _e['feet'][1], (_e['feet'][2][0] - 13, -11), (_e['feet'][3][0] - 9, -8)))
+GOAT_POSES['eat_kick2'] = dict(_e, hy=_e['hy'] - 2, feet=(_e['feet'][0], _e['feet'][1], (_e['feet'][2][0] - 3, -3), (_e['feet'][3][0] - 2, -2)))
 
 
 class Cat:
@@ -4246,6 +4253,7 @@ class Cat:
         self.cute = False
         self.squash = 0.0
         self.spin = 0.0
+        self.roll = 0.0
         self.paw = 0.0
         self.paw_to = None        # cible de la patte avant (x, y locaux) pour le coup de patte
         self.paw_ph = 0.0
@@ -4540,6 +4548,9 @@ class Cat:
     def V(self, v):
         """Vecteur local (x avant, y bas, z côté) -> écran (dx, dy) en pixels + profondeur."""
         x, y, z = v
+        if self.roll:                                           # roulade autour de la colonne (nez -> queue)
+            cr, sr = math.cos(self.roll), math.sin(self.roll)
+            y, z = y * cr - z * sr, y * sr + z * cr
         c, s_ = math.cos(self.yaw), math.sin(self.yaw)
         xr = x * c - z * s_
         zr = x * s_ + z * c
@@ -4794,6 +4805,8 @@ class Cat:
         R = (12.0 if goat else (8.8 if ferret else (12.6 if dog else 12.4))) * (1.12 if cute else 1.0) * (1.0 + 0.3 * self.kid)
         self.hshift = (self.look[0] * 1.5 * u, self.look[1] * 1.2 * u)
         dl = self.hyaw - self.yaw
+        if self.roll:                                            # sur le dos : il garde la tete tournee vers nous
+            dl *= math.cos(self.roll)
         cd, sd = math.cos(dl), math.sin(dl)
         f_ = (cd, 0.0, sd)
         l_ = (-sd, 0.0, cd)
@@ -5122,7 +5135,7 @@ class Cat:
         """Rectangle (écran) occupé par le chat, pour le survol."""
         u = self.u
         P = self.P
-        if abs(self.spin) > 0.6:                              # à la verticale (escalade)
+        if abs(self.spin) > 0.6 or abs(self.roll) > 0.6:      # à la verticale (escalade) ou sur le dos
             return self.x - 24 * u, self.y - 18 * u - 40 * u, self.x + 24 * u, self.y - 18 * u + 40 * u
         ext = max(abs(P['hdx']) + 16, abs(P['hx']) + 22) * max(abs(math.cos(self.yaw)), 0.55)
         top = self.y + (min(P['hdy'], P['sy']) - 20) * u
@@ -5715,7 +5728,7 @@ class Life:
         return 'Triste' if self.joy > 0.25 else 'Deprime'
 
 
-VERSION = '1.1.4'
+VERSION = '1.1.5'
 GITHUB_REPO = 'ethilbalde/desktop-pet'
 
 
@@ -6018,6 +6031,8 @@ class CatPet:
     def set_state(self, name):
         if self.log and name != self.state:
             self.log(f"[{self.now:6.1f}s] {self.state} -> {name}")
+        if self.state == 'sleep' and name != 'sleep':
+            self.sleep_len = 150.0                               # la sieste longue (apres le repas) est finie
         self.state = name
         self.state_t = 0.0
         self.sub = 'a'
@@ -6037,6 +6052,8 @@ class CatPet:
             ct.mouth = None
         if name not in ('climb', 'flip', 'belly'):
             ct.spin = 0.0
+        if name != 'belly':
+            ct.roll = 0.0
         ct.knead = (name == 'knead')
         ct.vib = {'knead': 1.0, 'pet': 0.8, 'rub': 0.8, 'sleep': 0.35, 'box': 0.0}.get(name, 0.0)
         if name != 'tailchase':
@@ -6651,14 +6668,14 @@ class CatPet:
             k = clamp(t / 0.45, 0.0, 1.0)
             e = k * k * (3 - 2 * k)
             ct.set_pose('belly', 10)
-            ct.spin = -ct.dir * PI * e
+            ct.roll = PI * e
             ct.yoff = lift * e - 6 * math.sin(PI * k)
             ct.squash = 0.15 * math.sin(PI * k)
             if k >= 1.0:
                 self.sub, self.belly_away = 'b', 0.0
                 self.sound('purr')
         elif self.sub == 'b':                                     # pattes en l'air, il se tortille
-            ct.spin = -ct.dir * PI + 0.07 * math.sin(t * 5)
+            ct.roll = PI + 0.12 * math.sin(t * 5)
             ct.yoff = lift
             scratch = self.over_cat() and self.cspeed > 60
             ct.set_pose('belly2' if (scratch and int(t * 6) % 2) else 'belly', 12 if scratch else 5)
@@ -6680,10 +6697,10 @@ class CatPet:
             k = clamp(t / 0.4, 0.0, 1.0)
             e = k * k * (3 - 2 * k)
             ct.set_pose('stand', 12)
-            ct.spin = -ct.dir * PI * (1 - e)
+            ct.roll = PI * (1 - e)
             ct.yoff = lift * (1 - e)
             if k >= 1.0:
-                ct.spin, ct.yoff = 0.0, 0.0
+                ct.roll, ct.yoff = 0.0, 0.0
                 self.belly_ok = self.now + 4
                 self.pet_ok = self.now + 1.0
                 self.go_idle(random.uniform(1.0, 2.5), 'sit')
@@ -6848,7 +6865,7 @@ class CatPet:
             self.zzz.append([hx + 6 * u, hy - 8 * u, 0.0])
             self.sound('purr')
         near = abs(self.cur[0] - ct.x) < 160 * u and abs(self.cur[1] - ct.y) < 160 * u and self.cspeed > 150
-        if near or self.over_cat() or self.cspeed > 1200 or self.state_t > 150:
+        if near or self.over_cat() or self.cspeed > 1200 or self.state_t > getattr(self, 'sleep_len', 150.0):
             self.set_state('stretch')
 
     def st_stretch(self, dt):
@@ -8076,16 +8093,56 @@ class CatPet:
         ct.eyes = 'closed' if int(t * 2) % 2 else 'open'
         ct.yawn = 0.25 + 0.25 * math.sin(t * 16)
         ct.wag = 0.15
-        if int(t * 2.5) != int((t - dt) * 2.5):
+        if int(t * 0.3) != int((t - dt) * 0.3):                   # « nom nom » de temps en temps (le repas dure une minute)
             self.sound('crunch')
-        o.food = max(0.0, 1.0 - t / 5.0)
-        if t > 5.0:
+        # on le caresse pendant qu'il mange : chacun reagit a sa facon
+        petted = self.over_cat() and not self.getbtn() and 15 < self.cspeed < 1100
+        fp = getattr(self, 'feed_pet', 0.0)
+        self.feed_pet = min(1.0, fp + dt * 4) if petted else max(0.0, fp - dt * 1.5)
+        if self.feed_pet > 0.3:
+            self.feed_pet_react(dt, t)
+        o.food = max(0.0, 1.0 - t / self.MEAL_TIME)
+        if t > self.MEAL_TIME:
             o.food = 0.0
             o.empty_t = self.now
+            self.feed_pet = 0.0
             self.hunger = max(0.0, self.hunger - 0.85)
             self.hearts.append([ct.x + ct.dir * 14 * u, ct.y - 62 * u, 0.0])
             self.sound('meow')
-            self.go_idle(random.uniform(2, 4), 'sit')
+            self.say('Je suis repu...')
+            self.sleep_len = self.DIGEST_SLEEP                   # le ventre plein : une bonne sieste
+            self.start_sleep()
+
+    MEAL_TIME = 60.0                                             # un repas dure une minute
+    DIGEST_SLEEP = 300.0                                         # puis cinq minutes de sieste
+    FEED_PET = 'butt'                                            # chat et furet : levent les fesses quand on les caresse
+
+    def feed_pet_react(self, dt, t):
+        """Caresse pendant le repas."""
+        ct, u = self.cat, self.u
+        kind = self.FEED_PET
+        self.feed_heart_t = getattr(self, 'feed_heart_t', 0.0) + dt
+        if kind == 'kick':                                       # la chevre n'aime pas : elle rue des pattes arriere
+            ct.set_pose('eat_kick' if int(t * 3.5) % 2 else 'eat_kick2', 16)
+            ct.eyes = 'open'
+            ct.wag = 0.0
+            self.life.joy = max(0.0, self.life.joy - dt * 0.004)
+            if self.feed_heart_t > 2.2:
+                self.feed_heart_t = 0.0
+                self.say(random.choice(('Beeeh ! Laisse-moi manger !', 'Pas pendant le repas !', 'Beeeh !')))
+                self.sound('bleat_s')
+                ct.squash = 0.25
+            return
+        if kind == 'butt':                                       # chat, furet : les fesses se levent sous la main
+            ct.set_pose('eat_butt', 7)
+            ct.wag = 0.5
+        elif kind == 'wag':                                      # chien : la queue remue beaucoup plus vite
+            ct.wag = 1.3
+        ct.eyes = 'happy'
+        if self.feed_heart_t > 0.9:
+            self.feed_heart_t = 0.0
+            self.hearts.append([ct.x + random.uniform(-12, 12) * u, ct.y - 50 * u, 0.0])
+            self.sound('purr')
 
     # ------------------------------------------------------------------ proies spontanées (mouches, souris qui traversent l'écran)
     def spawn_ambient(self):
@@ -8886,7 +8943,6 @@ def paged_menu(page, animal, rows, pet=None):
         out += [r for r in rows if r[1] in ACTION_ACTS]
     elif page == 'out':
         out += OUT_ITEMS.get(animal, OUT_DEFAULT) + [r for r in rows if r[1] in OUT_ACTS]
-        out.append(('Signaler un bug...', 'bug'))
     elif page == 'animal':
         out += [r for r in rows if r[1] in ANIMAL_ACTS]
         if pet is not None and hasattr(pet, 'life'):
@@ -8908,6 +8964,7 @@ def paged_menu(page, animal, rows, pet=None):
         extra.append(('Mise a jour   (v%s)' % VERSION, 'update'))
         if UPDATER.msg:
             extra.append((UPDATER.msg, None))
+        extra.append(('Un bug ?', 'bug'))                       # ouvre le rapport de bug (ticket GitHub pre-rempli)
         out += [r for r in base if r[1] not in ('pause', 'quit')] + extra + [r for r in base if r[1] in ('pause', 'quit')]
     return out
 
@@ -8918,6 +8975,7 @@ class DogPet(CatPet):
     UK = 1.6
     ANGRY_STATES = ()
     LOOK_STATES = CatPet.LOOK_STATES + ('beg', 'bark', 'defend', 'fetch')
+    FEED_PET = 'wag'                                             # caresse pendant le repas : la queue remue tres vite
     HAPPY = ('pet', 'greet', 'beg', 'fetch', 'follow', 'zoom', 'tailchase', 'stretch')
 
     def __init__(self, area, scale, getcursor, log=None, coat='golden'):
@@ -9297,6 +9355,7 @@ class GoatPet(DogPet):
     """Chevre naine : meme moteur que le chien, mais elle belait, broute, se dresse, donne des coups de tete et grimpe partout."""
     UK = 1.5
     LOOK_STATES = DogPet.LOOK_STATES + ('butt',)
+    FEED_PET = 'kick'                                            # elle n'aime pas qu'on la touche quand elle mange : ruade
     HAPPY = ()
     WORDS = {'Ouaf !': 'Meee !', 'WOUF !': 'MEEEH !', 'Wouf !': 'Meeh !', 'Ouaf ?': 'Meeh ?'}
 
@@ -9556,6 +9615,9 @@ class FerretPet(DogPet):
     """Furet : tres rapide, il chasse le curseur (course, bond, repli), fait la danse de guerre, se faufile et creuse."""
     UK = 1.0
     LOOK_STATES = DogPet.LOOK_STATES + ('dance',)
+    FEED_PET = 'butt'                                            # comme le chat : les fesses se levent
+    MEAL_TIME = 60.0 * 1.4                                       # son temps va 1.4 fois plus vite : une vraie minute
+    DIGEST_SLEEP = 300.0 * 1.4                                   # et cinq vraies minutes de sieste
     HAPPY = ()
     SPEED = 1.4
     WORDS = {'Ouaf !': 'Dook !', 'WOUF !': 'DOOK DOOK !', 'Wouf !': 'Dook !', 'Ouaf ?': 'Dook ?'}
@@ -10187,6 +10249,7 @@ class OctopusPet(CatPet):
     G_K = 0.5                                                    # il flotte : gravite plus faible
     ANGRY_STATES = ('defend', 'ink')
     LOOK_STATES = CatPet.LOOK_STATES + ('color', 'belly', 'swat')
+    FEED_PET = 'hold'                                            # caresse pendant le repas : il tient le pointeur d'une tentacule
     WORDS = {'Ronron...': 'Bloub bloub...', 'Je suis le roi !': 'Huit bras, zero souci !', 'Facile.': 'Facile, j ai 8 bras.',
              'Hop hop !': 'Ventouses !', 'Oups !': 'Ca glisse !'}
     FUNNY = (('derp', 'Bloup ?'), ('wink', 'Wink !'), ('smug', 'Hmm...'), ('wide', 'Oh !'), ('heart', 'Bloub !'))
@@ -10386,6 +10449,9 @@ class OctopusPet(CatPet):
             reach, mouth = self.reach_cursor(2), 'o'
         elif st in ('eat', 'feed'):
             reach, mouth, eye, mood = {2: (-1.5, -6.5), 4: (1.5, -6.5)}, 'munch', 'happy', 'content'
+            if st == 'feed' and getattr(self, 'feed_pet', 0.0) > 0.3:      # on le caresse : une tentacule tient le pointeur
+                reach.update(self.reach_cursor(1))
+                eye = 'heart'
         elif st == 'stretch':
             pose = 'etoile'
         elif st == 'loaf':

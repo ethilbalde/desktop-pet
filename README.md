@@ -87,7 +87,7 @@ Chacun a plusieurs pelages, des grimaces (yeux qui louchent, cœurs dans les yeu
 
 **Besoin de concentration ?** Clic droit > *Réglages* > *Pause* : il s'arrête et t'attend sagement (en te fixant avec de grands yeux). Ou *Quitter*, mais il sera content de te revoir au prochain lancement.
 
-**Un vrai problème ?** (un animal coincé, un plantage...) Signale-le directement depuis le programme : clic droit sur le **panier** > **Sortir** > **Signaler un bug**. Ton navigateur ouvre un ticket déjà rempli, tu n'as plus qu'à l'envoyer.
+**Un vrai problème ?** (un animal coincé, un plantage...) Signale-le directement depuis le programme : clic droit sur l'animal > **Réglages** > **Un bug ?**. Ton navigateur ouvre un ticket déjà rempli, tu n'as plus qu'à l'envoyer.
 
 ## Installation (30 secondes, dont 25 à hésiter)
 
