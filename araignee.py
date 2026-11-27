@@ -5841,7 +5841,11 @@ def spawn_script(text, name='araignee_relance.bat'):
     path = os.path.join(tempfile.gettempdir(), name)
     with open(path, 'w', encoding='mbcs', errors='replace') as f:
         f.write(text)
-    subprocess.Popen(['cmd', '/c', path], creationflags=0x08000000 | 0x00000008, close_fds=True)
+    # environnement propre : sans ca, l'exe relance croit etre un enfant de celui-ci et cherche
+    # ses fichiers dans le dossier temporaire _MEI de l'ancien (supprime a sa fermeture) -> "Failed to load Python DLL"
+    env = {k: v for k, v in os.environ.items() if not (k.startswith('_PYI_') or k.startswith('_MEI'))}
+    env['PYINSTALLER_RESET_ENVIRONMENT'] = '1'
+    subprocess.Popen(['cmd', '/c', path], creationflags=0x08000000 | 0x00000008, close_fds=True, env=env)
 
 
 def restart_soon():
